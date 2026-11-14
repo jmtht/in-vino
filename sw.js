@@ -1,13 +1,13 @@
 // In Vino - service worker : l'app fonctionne hors-ligne.
 // Les appels à api.github.com ne sont jamais mis en cache.
-const CACHE = "invino-v1";
+const CACHE = "invino-v2";
 const SHELL = [
   "./", "./index.html", "./manifest.webmanifest",
-  "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png",
-  "./fonts/instrument-serif-400-normal.woff2", "./fonts/instrument-serif-400-italic.woff2",
-  "./fonts/pinyon-script-400-normal.woff2", "./fonts/jetbrains-mono-400-normal.woff2",
-  "./fonts/cormorant-garamond-400-normal.woff2", "./fonts/cormorant-garamond-400-italic.woff2",
-  "./fonts/cormorant-garamond-500-normal.woff2", "./fonts/cormorant-garamond-500-italic.woff2"
+  "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",
+  "./instrument-serif-400-normal.woff2", "./instrument-serif-400-italic.woff2",
+  "./pinyon-script-400-normal.woff2", "./jetbrains-mono-400-normal.woff2",
+  "./cormorant-garamond-400-normal.woff2", "./cormorant-garamond-400-italic.woff2",
+  "./cormorant-garamond-500-normal.woff2", "./cormorant-garamond-500-italic.woff2"
 ];
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
