@@ -219,7 +219,27 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;background:var(--crim
 
 /* MODAL / TOAST */
 .modal{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.72);display:flex;align-items:flex-end;justify-content:center;animation:fade .2s}
-.modal .sheet{width:100%;max-width:560px;background:var(--ink2);border-top:1px solid var(--line);padding:22px 18px calc(22px + var(--safe-b));animation:up .25s}
+.modal .sheet{width:100%;max-width:560px;background:var(--ink2);border-top:1px solid var(--line);padding:22px 18px calc(22px + var(--safe-b));animation:up .25s;max-height:90vh;max-height:90dvh;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.sesscard{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid var(--line);background:var(--ink2);padding:14px;margin:6px 0 4px}
+.sn{font-family:var(--display);font-size:24px;text-transform:uppercase;line-height:1.05}
+.wrapc{flex-wrap:wrap;overflow:visible}
+.sesslist{max-height:36vh;max-height:36dvh;overflow:auto;border-top:1px solid var(--line);margin-top:10px}
+.sessrow{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;background:none;border:0;border-bottom:1px solid var(--line);padding:12px 4px;text-align:left;cursor:pointer;color:var(--bone)}
+.sessrow.on{background:var(--ink3)}
+.sessrow .ck{font-family:var(--mono);color:var(--crimson);font-size:16px}
+.badge{font-family:var(--mono);font-size:9px;letter-spacing:.12em;background:var(--crimson);color:var(--bone);padding:2px 6px;vertical-align:middle;margin-left:6px;text-transform:uppercase}
+.cklist{max-height:48vh;max-height:48dvh;overflow:auto;border-top:1px solid var(--line);margin-top:8px}
+.ckrow{position:relative;display:grid;grid-template-columns:26px 1fr;gap:12px;align-items:center;padding:11px 4px;border-bottom:1px solid var(--line);cursor:pointer}
+.ckrow input{position:absolute;opacity:0;pointer-events:none}
+.ckrow .box{width:20px;height:20px;border:1px solid var(--bone2);display:flex;align-items:center;justify-content:center}
+.ckrow input:checked+.box{background:var(--crimson);border-color:var(--crimson)}
+.ckrow input:checked+.box::after{content:"";width:8px;height:8px;background:var(--bone);transform:rotate(45deg)}
+.ckrow .t{font-family:var(--display);font-size:20px;text-transform:uppercase;line-height:1}
+.tonight{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px;margin-top:16px;background:radial-gradient(120% 140% at 0% 0%,#5c1013,#2a0809 70%);border:1px solid rgba(236,230,218,.18)}
+.tonight .tb{display:flex;flex-direction:column;gap:6px;flex:none}
+.ckline{display:flex;gap:10px;align-items:center;padding:12px 0;font-style:italic;color:var(--bone2);cursor:pointer}
+.ckline input{accent-color:var(--crimson);width:18px;height:18px}
+.soiree.on{border-color:var(--crimson);background:linear-gradient(135deg,#2a0809,var(--ink2) 60%)}
 .modal h3{margin:0 0 8px;font-family:var(--display);font-weight:400;font-size:32px;text-transform:uppercase}
 @keyframes fade{from{opacity:0}}@keyframes up{from{transform:translateY(30px);opacity:0}}
 .toast{position:fixed;left:50%;bottom:calc(100px + var(--safe-b));transform:translateX(-50%);z-index:70;background:var(--bone);color:var(--ink);padding:10px 16px;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;animation:fade .2s;max-width:90vw;text-align:center}
@@ -548,11 +568,13 @@ function go(name,id=null,replace=false){
   render(); window.scrollTo(0,0);
 }
 let MODAL=null, POP_SKIP=null;
-function openModal(m){document.body.appendChild(m);MODAL=m;history.pushState(Object.assign({},history.state,{modal:1}),"")}
-function closeModal(){return new Promise(res=>{if(!MODAL)return res();MODAL.remove();MODAL=null;POP_SKIP=res;history.back()})}
+function openModal(m,onClose){m._onClose=onClose;document.body.appendChild(m);MODAL=m;history.pushState(Object.assign({},history.state,{modal:1}),"")}
+function closeModal(){return new Promise(res=>{if(!MODAL)return res();const m=MODAL;m.remove();MODAL=null;POP_SKIP=res;history.back();m._onClose&&m._onClose()})}
+function openSheet(inner,bindFn,onClose){const m=document.createElement("div");m.className="modal";m.innerHTML=`<div class="sheet form">${inner}</div>`;
+  m.onclick=e=>{if(e.target===m||e.target.closest("[data-x]"))closeModal()};openModal(m,onClose);bindFn&&bindFn(m);return m}
 window.addEventListener("popstate",ev=>{
   if(POP_SKIP){const r=POP_SKIP;POP_SKIP=null;r();return}
-  if(MODAL){MODAL.remove();MODAL=null;return}   // bouton retour Android : ferme la fenêtre
+  if(MODAL){const m=MODAL;m.remove();MODAL=null;m._onClose&&m._onClose();return}   // bouton retour Android : ferme la fenêtre
   route=ev.state||{name:"cave"};render()});
 $$("#nav button").forEach(b=>b.onclick=()=>go(b.dataset.go==="new"?"edit":b.dataset.go,null));
 $("#syncBtn").onclick=()=>sync(true);
@@ -586,6 +608,12 @@ function filtered(){
     score:(a,b)=>(avg(b)??-1)-(avg(a)??-1), vintage:(a,b)=>(parseInt(a.vintage)||9999)-(parseInt(b.vintage)||9999), name:(a,b)=>(a.name||"").localeCompare(b.name||"")};
   return list.sort(by[UI.sort]);
 }
+function tonightHTML(){
+  const A=getActive(); if(!A) return "";
+  const n=entries().filter(e=>e.session===A.name&&e.date===A.date).length;
+  return `<div class="tonight"><div style="min-width:0"><div class="mono b">${A.date===today()?"Ce soir":esc(fmtDate(A.date))}</div><div class="sn" style="overflow-wrap:anywhere">${esc(A.name)}</div><div class="note" style="font-size:15px">${n} vin${n>1?"s":""}${A.place?" · "+esc(A.place):""}</div></div>
+    <div class="tb"><button class="btn red small" data-tn="add">+ Un vin</button><button class="btn small" data-tn="go">Voir</button></div></div>`;
+}
 function cardHTML(e,no){
   const a=avg(e);
   return `<button class="card" data-wine="${e.id}">
@@ -617,6 +645,7 @@ function viewCave(){
       </div>
     </div>
     <div class="wrap">
+      ${tonightHTML()}
       <div class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8d867b" stroke-width="1.4"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
         <input id="q" placeholder="Chercher un vin, un cépage, un ami…" value="${esc(UI.q)}" autocomplete="off"></div>
       <div class="chips" id="filters">
@@ -643,6 +672,7 @@ bind.cave=v=>{
   $("#sort",v).onchange=e=>{UI.sort=e.target.value;render(true)};
   bindCards(v);
   const gs=$("[data-gos]",v); if(gs) gs.onclick=()=>go("soirees");
+  $$("[data-tn]",v).forEach(b=>b.onclick=()=>{const A=getActive();if(!A)return;if(b.dataset.tn==="add"){draft=blankEntry();go("edit")}else go("soiree",sessKey(A.name,A.date))});
 };
 function bindCards(v){$$("[data-wine]",v).forEach(c=>c.onclick=()=>go("wine",c.dataset.wine))}
 
@@ -672,7 +702,7 @@ function viewWine(id){
           <h2>${esc(e.name||"Sans nom")}</h2>
           <span class="script">${esc(SCRIPT_COLOR[e.color]||"Vinum")}</span>
           <div class="row-between" style="margin-top:14px;align-items:flex-end">
-            <div class="mono b" style="max-width:62%">${esc(e.session||"")}${e.session&&e.date?" · ":""}${esc(fmtDate(e.date))}${e.place?"<br>"+esc(e.place):""}</div>
+            <div class="mono b" style="max-width:62%">${e.session?`<button class="linkbtn" data-gosess="${esc(sessionKey(e))}" style="color:var(--bone);text-align:left">${esc(e.session)}</button> · `:""}${esc(fmtDate(e.date))}${e.place?"<br>"+esc(e.place):""}</div>
             ${barcode(e.id)}
           </div>
         </div>
@@ -687,7 +717,7 @@ function viewWine(id){
       ${hasPalate?`<div class="section">${S_("La bouche")}${radarSVG(p)}${PALATE_AXES.map(([k,l])=>meterHTML(l,p[k],SCALES[k])).join("")}${p.notes?`<p class="note">${esc(p.notes)}</p>`:""}</div>`:""}
       ${(e.pairing||e.verdict)?`<div class="section">${S_("Coda")}${e.pairing?`<div class="mono">Accords</div><p style="margin:4px 0 14px">${esc(e.pairing)}</p>`:""}${e.verdict?`<div class="redblock"><div class="mono b" style="text-align:center">Le mot de la fin</div><div class="quote">« ${esc(e.verdict)} »</div></div>`:""}</div>`:""}
       ${terroirHTML(e)}
-      <div class="actions"><button class="btn" id="editBtn">Modifier</button><button class="btn ghost" id="delBtn">Effacer</button></div>
+      <div class="actions"><button class="btn" id="editBtn">Modifier</button><button class="btn" id="sessBtn">Soirée</button><button class="btn ghost" id="delBtn">Effacer</button></div>
       <div class="rule mono" style="margin-top:30px">Inscrit le ${esc(fmtDate(e.createdAt.slice(0,10)))}</div>
     </div>
   </article>`;
@@ -704,6 +734,9 @@ function terroirHTML(e){
 bind.wine=v=>{
   const mb=$("[data-map]",v); if(mb) mb.onclick=()=>go("carte",mb.dataset.map);
   const b=$("#editBtn",v); if(!b) return;
+  const gs=$("[data-gosess]",v); if(gs) gs.onclick=()=>go("soiree",gs.dataset.gosess);
+  $("#sessBtn",v).onclick=async()=>{const e=S.entries[route.id];const x=await pickSession({cur:sessionKey(e),allowNone:!!e.session});
+    if(x===undefined)return; await assignSession([e.id],x); buzz(20); toast(x?"Rattaché à « "+x.name+" »":"Retiré de la soirée"); render(true)};
   b.onclick=()=>go("edit",route.id);
   $("#delBtn",v).onclick=()=>confirmSheet("Effacer ce vin ?","Il disparaîtra de la cave de toute la confrérie.","Effacer",async()=>{await deleteEntry(route.id);toast("Vin effacé");history.back()});
 };
@@ -717,12 +750,13 @@ function confirmSheet(title,text,okLabel,onOk){
 
 /* ============ VUE : FORMULAIRE ============ */
 let draft=null;
-function blankEntry(){
-  const last=entries().sort((a,b)=>b.createdAt.localeCompare(a.createdAt))[0];
-  const sameDay=last&&last.date===today();
+function blankEntry(sess){
+  const A=sess||getActive();
+  const last=entries().filter(e=>A?e.session===A.name&&e.date===A.date:e.date===today()).sort((a,b)=>b.createdAt.localeCompare(a.createdAt))[0];
+  const sm=A||(last&&last.session?{name:last.session,date:last.date,place:last.place}:null);
   return {id:uid(),createdAt:now(),updatedAt:now(),name:"",producer:"",vintage:"",color:"rouge",appellation:"",region:"",country:"France",grapes:[],abv:"",price:"",where:"",photo:null,
-    date:today(),session:sameDay?last.session:"",place:sameDay?last.place:"",eye:{},nose:{},palate:{},aromas:[],
-    scores:sameDay?(last.scores||[]).map(s=>({who:s.who,score:null,comment:""})):(ME?[{who:ME,score:null,comment:""}]:[]),
+    date:sm?sm.date:today(),session:sm?sm.name:"",place:sm?(sm.place||""):"",eye:{},nose:{},palate:{},aromas:[],
+    scores:last?(last.scores||[]).map(s=>({who:s.who,score:null,comment:""})):(ME?[{who:ME,score:null,comment:""}]:[]),
     pairing:"",drinkBy:"",rebuy:"",verdict:""};
 }
 function datalist(id,vals){vals=[...new Set(vals.filter(Boolean))].sort((a,b)=>a.localeCompare(b));return `<datalist id="${id}">${vals.map(v=>`<option value="${esc(v)}">`).join("")}</datalist>`}
@@ -770,9 +804,7 @@ function viewEdit(id){
     </div>
 
     ${H("La soirée")}
-    <div class="field"><label class="mono">Date</label><input type="date" data-k="date" value="${esc(e.date)}"></div>
-    <div class="field"><label class="mono">Nom de la soirée</label><input type="text" data-k="session" value="${esc(e.session)}" list="dlSes" placeholder="Soirée Rhône chez Paul" autocomplete="off">${datalist("dlSes",all.map(x=>x.session))}</div>
-    <div class="field"><label class="mono">Lieu</label><input type="text" data-k="place" value="${esc(e.place)}" list="dlPl" placeholder="Nantes" autocomplete="off">${datalist("dlPl",all.map(x=>x.place))}</div>
+    <div id="sessBox">${sessBoxHTML(e)}</div>
 
     ${H("Le verdict")}
     <p class="note" style="margin:0 0 4px">Chaque palais note sur 20.</p>
@@ -807,6 +839,22 @@ function viewEdit(id){
     <div class="sticky-save"><button class="btn red" id="save">${isNew?"Inscrire dans la cave":"Enregistrer"}</button></div>
   </section>`;
 }
+function shortDate(d){if(!d)return"";const[y,m,dd]=d.split("-");return `${+dd} ${MONTHS[+m-1]}`}
+function sessBoxHTML(e){
+  const cur=e.session?sessKey(e.session,e.date):"";
+  const quick=sessionsAll().filter(x=>x.key!==cur).slice(0,3);
+  return (e.session?`<div class="sesscard"><div><div class="mono">Soirée</div><div class="sn">${esc(e.session)}</div><div class="note">${esc(fmtDate(e.date))}${e.place?" · "+esc(e.place):""}</div></div><button type="button" class="linkbtn" data-sessnone>Retirer</button></div>`
+    :`<div class="field"><label class="mono">Date de dégustation</label><input type="date" data-k="date" value="${esc(e.date)}"></div>`)+
+    `<div class="chips wrapc">${quick.map(x=>`<button type="button" class="chip" data-sessq="${esc(x.key)}">${x.active?'<span class="sw" style="background:var(--crimson)"></span>':""}${esc(x.name)} · ${esc(shortDate(x.date))}</button>`).join("")}<button type="button" class="chip" data-sesspick>${e.session?"Autre soirée…":"Choisir ou créer une soirée…"}</button></div>`;
+}
+function bindSessBox(v,e){
+  const box=$("#sessBox",v); const re=()=>{box.innerHTML=sessBoxHTML(e);bindSessBox(v,e)};
+  const d=$('[data-k="date"]',box); if(d) d.addEventListener("input",()=>{e.date=d.value});
+  const set=x=>{if(x===undefined)return;if(x){e.session=x.name;e.date=x.date||e.date;e.place=x.place||""}else{e.session="";e.place=""}re()};
+  $$("[data-sessq]",box).forEach(b=>b.onclick=()=>{const x=sessionsAll().find(y=>y.key===b.dataset.sessq);set(x)});
+  const n=$("[data-sessnone]",box); if(n) n.onclick=()=>set(null);
+  $("[data-sesspick]",box).onclick=async()=>set(await pickSession({cur:e.session?sessKey(e.session,e.date):"",allowNone:!!e.session}));
+}
 function aocHint(v){const a=matchAOC(v);return a?`<b>${esc(VIN_REGIONS[a.r].name)}</b> · ${esc(a.g.join(", "))}`:""}
 function scoreRowHTML(s,i){
   const v=s.score==null||s.score===""?null:parseFloat(s.score);
@@ -822,6 +870,7 @@ bind.edit=v=>{
   const e=draft;
   $$("[data-k]",v).forEach(inp=>inp.addEventListener("input",()=>{let val=inp.value;if(inp.dataset.k==="grapes")val=val.split(",").map(x=>x.trim()).filter(Boolean);setPath(e,inp.dataset.k,val)}));
   $("#cancel",v).onclick=()=>{draft=null;history.back()};
+  bindSessBox(v,e);
   const ap=$('[data-k="appellation"]',v);
   ap.addEventListener("input",()=>{$("#aocHint",v).innerHTML=aocHint(ap.value)});
   ap.addEventListener("change",()=>{const a=matchAOC(ap.value);if(!a)return;
@@ -866,17 +915,96 @@ function promptSheet(title,ph,onOk){
 }
 
 /* ============ VUE : SOIRÉES ============ */
-function sessionKey(e){return e.session||e.date?`${e.date||""}|${e.session||""}`:""}
-function groupSessions(){const g={};for(const e of entries()){const k=sessionKey(e);if(!k)continue;(g[k]=g[k]||[]).push(e)}return Object.entries(g).sort((a,b)=>b[0].localeCompare(a[0]))}
+function sessKey(name,date){return `${date||""}|${name}`}
+function sessionKey(e){return e.session?sessKey(e.session,e.date):""}
+function getActive(){try{const a=JSON.parse(localStorage.getItem("iv_active")||"null");if(!a)return null;
+  const lim=new Date(Date.now()-36*3600e3).toISOString().slice(0,10);if(a.date<lim){localStorage.removeItem("iv_active");return null}return a}catch(e){return null}}
+function setActive(a){a?localStorage.setItem("iv_active",JSON.stringify({name:a.name,date:a.date,place:a.place||""})):localStorage.removeItem("iv_active")}
+function sessionsAll(){
+  const g={};
+  for(const e of entries()){ if(!e.session) continue; const k=sessionKey(e);
+    const x=g[k]=g[k]||{key:k,name:e.session,date:e.date,place:"",list:[]}; x.list.push(e); if(!x.place&&e.place) x.place=e.place }
+  const A=getActive(); if(A){const k=sessKey(A.name,A.date); if(!g[k]) g[k]={key:k,name:A.name,date:A.date,place:A.place||"",list:[]}; g[k].active=true}
+  return Object.values(g).sort((a,b)=>(b.active?1:0)-(a.active?1:0)||(b.date||"").localeCompare(a.date||"")||a.name.localeCompare(b.name));
+}
+function groupSessions(){return sessionsAll().filter(x=>x.list.length).map(x=>[x.key,x.list])}
+async function assignSession(ids,x){
+  for(const id of ids){const e=S.entries[id];if(!e)continue;
+    if(x){e.session=x.name;e.date=x.date||e.date;e.place=x.place||""}else{e.session="";e.place=""}
+    e.updatedAt=now()}
+  await saveLocal(); scheduleSync();
+}
+/* Choisir / créer une soirée. Résout {name,date,place}, null (aucune) ou undefined (annulé). */
+function pickSession({cur="",allowNone=false,title="Rattacher à une soirée",createFirst=false}={}){
+  return new Promise(res=>{ let done=false; const fin=async v=>{if(done)return;done=true;await closeModal();res(v)};
+    const ss=sessionsAll(); const places=entries().map(e=>e.place);
+    const listH=ss.length?`<div class="sesslist">${ss.map(x=>`<button type="button" class="sessrow ${x.key===cur?"on":""}" data-pk="${esc(x.key)}"><div><div class="sn" style="font-size:21px">${esc(x.name)}${x.active?'<span class="badge">En cours</span>':""}</div><div class="mono">${esc(fmtDate(x.date))}${x.place?" · "+esc(x.place):""} · ${x.list.length} vin${x.list.length>1?"s":""}</div></div><span class="ck">${x.key===cur?"✓":""}</span></button>`).join("")}</div>`:`<p class="note">Aucune soirée encore : crée la première.</p>`;
+    const formH=`<div class="field"><label class="mono">Nom</label><input type="text" id="nsName" placeholder="Soirée Rhône chez Paul" autocomplete="off"></div>
+      <div class="grid2"><div class="field"><label class="mono">Date</label><input type="date" id="nsDate" value="${today()}"></div>
+        <div class="field"><label class="mono">Lieu</label><input type="text" id="nsPlace" list="dlNsPl" placeholder="Nantes" autocomplete="off">${datalist("dlNsPl",places)}</div></div>
+      <label class="ckline"><input type="checkbox" id="nsAct" checked> C'est la soirée en cours : les prochains vins y iront tout seuls</label>
+      <div class="actions"><button type="button" class="btn ghost" data-x>Annuler</button><button type="button" class="btn red" data-create>Créer</button></div>`;
+    openSheet(createFirst?`<div class="mono">La confrérie se réunit</div><h3>Nouvelle soirée</h3>${formH}${ss.length?`<div class="rule mono">ou rouvrir une soirée</div>${listH}`:""}`
+      :`<div class="mono">${esc(title)}</div><h3>Soirées</h3>${listH}<div class="rule mono">Nouvelle soirée</div>${formH}
+      ${allowNone?`<div class="actions" style="margin-top:8px"><button type="button" class="btn ghost" data-none>Aucune soirée</button></div>`:""}`,
+    m=>{
+      $$("[data-pk]",m).forEach(b=>b.onclick=()=>{const x=ss.find(y=>y.key===b.dataset.pk);fin({name:x.name,date:x.date,place:x.place})});
+      const nb=$("[data-none]",m); if(nb) nb.onclick=()=>fin(null);
+      const dt=$("#nsDate",m), ac=$("#nsAct",m); dt.onchange=()=>{ac.checked=dt.value>=today()};
+      $("[data-create]",m).onclick=()=>{const name=$("#nsName",m).value.trim();if(!name){toast("Donne un nom à la soirée");$("#nsName",m).focus();return}
+        const x={name,date:dt.value||today(),place:$("#nsPlace",m).value.trim()}; if(ac.checked) setActive(x); fin(x)};
+    },()=>{if(!done){done=true;res(undefined)}});
+  });
+}
+/* Cocher les vins d'une soirée */
+function manageWines(x){
+  const inIt=new Set(x.list.map(e=>e.id));
+  const all=entries().sort((a,b)=>(inIt.has(b.id)-inIt.has(a.id))||((b.date===x.date)-(a.date===x.date))||(b.date||"").localeCompare(a.date||""));
+  openSheet(`<div class="mono">${esc(x.name)} · ${esc(fmtDate(x.date))}</div><h3>Les vins de la soirée</h3>
+    <div class="search" style="margin-top:0"><input id="ckq" placeholder="Chercher un vin…" autocomplete="off"></div>
+    <div class="cklist">${all.length?all.map(e=>`<label class="ckrow" data-txt="${esc(norm([e.name,e.producer,e.appellation,e.vintage].join(" ")))}"><input type="checkbox" value="${e.id}" ${inIt.has(e.id)?"checked":""}><span class="box"></span>
+      <div><div class="t">${esc(e.name||e.producer||"Sans nom")}</div><div class="mono">${esc([e.producer&&e.name?e.producer:"",e.vintage].filter(Boolean).join(" · "))}${e.session&&!inIt.has(e.id)?` · <span style="color:var(--bone2)">${esc(e.session)}</span>`:""}${!e.session?" · "+esc(fmtDate(e.date)):""}</div></div></label>`).join(""):`<p class="note">La cave est vide.</p>`}</div>
+    <div class="actions"><button type="button" class="btn ghost" data-x>Annuler</button><button type="button" class="btn red" data-save>Enregistrer</button></div>`,
+  m=>{
+    const q=$("#ckq",m); q.oninput=()=>{const n=norm(q.value);$$(".ckrow",m).forEach(r=>r.style.display=!n||r.dataset.txt.includes(n)?"":"none")};
+    const upd=()=>{const n=$$(".ckrow input:checked",m).length;$("[data-save]",m).textContent=`Enregistrer · ${n} vin${n>1?"s":""}`}; upd();
+    $$(".ckrow input",m).forEach(c=>c.onchange=upd);
+    $("[data-save]",m).onclick=async()=>{const on=new Set($$(".ckrow input:checked",m).map(c=>c.value));
+      const add=[...on].filter(id=>!inIt.has(id)), rem=[...inIt].filter(id=>!on.has(id));
+      await closeModal(); if(add.length) await assignSession(add,x); if(rem.length) await assignSession(rem,null);
+      buzz(20); toast(add.length||rem.length?`${add.length?add.length+" ajouté"+(add.length>1?"s":""):""}${add.length&&rem.length?", ":""}${rem.length?rem.length+" retiré"+(rem.length>1?"s":""):""}`:"Rien n'a changé"); render(true)};
+  });
+}
+function editSession(x){
+  const places=entries().map(e=>e.place); const A=getActive(); const isAct=!!(A&&sessKey(A.name,A.date)===x.key);
+  openSheet(`<div class="mono">Soirée</div><h3>Modifier</h3>
+    <div class="field"><label class="mono">Nom</label><input type="text" id="esName" value="${esc(x.name)}" autocomplete="off"></div>
+    <div class="grid2"><div class="field"><label class="mono">Date</label><input type="date" id="esDate" value="${esc(x.date)}"></div>
+      <div class="field"><label class="mono">Lieu</label><input type="text" id="esPlace" value="${esc(x.place)}" list="dlEsPl" autocomplete="off">${datalist("dlEsPl",places)}</div></div>
+    <p class="note">Les ${x.list.length} vin${x.list.length>1?"s":""} de la soirée seront mis à jour. Donner le nom et la date d'une autre soirée fusionne les deux.</p>
+    <div class="actions"><button type="button" class="btn ghost" data-x>Annuler</button><button type="button" class="btn red" data-save>Enregistrer</button></div>
+    <div class="actions" style="margin-top:8px"><button type="button" class="btn ghost" data-dissolve>Dissoudre la soirée</button></div>`,
+  m=>{
+    $("[data-save]",m).onclick=async()=>{const n={name:$("#esName",m).value.trim(),date:$("#esDate",m).value||x.date,place:$("#esPlace",m).value.trim()};
+      if(!n.name){toast("Il faut un nom");return}
+      await closeModal(); await assignSession(x.list.map(e=>e.id),n); if(isAct) setActive(n);
+      toast("Soirée mise à jour"); go("soiree",sessKey(n.name,n.date),true)};
+    $("[data-dissolve]",m).onclick=async()=>{await closeModal();
+      confirmSheet("Dissoudre la soirée ?",`Les ${x.list.length} vins restent dans la cave, simplement sans soirée.`,"Dissoudre",async()=>{
+        await assignSession(x.list.map(e=>e.id),null); if(isAct) setActive(null); toast("Soirée dissoute"); go("soirees",null,true)})};
+  });
+}
+async function newSessionFlow(){const x=await pickSession({createFirst:true}); if(x) go("soiree",sessKey(x.name,x.date))}
 function viewSoirees(){
-  const gs=groupSessions();
+  const gs=sessionsAll().map(x=>[x.key,x.list,x]);
   return `<section class="wrap"><div class="seg toptabs"><button type="button" data-tab="palmares" class="">Palmarès</button><button type="button" data-tab="soirees" class="on">Soirées</button></div>
     <h1 style="font-family:var(--display);font-weight:400;font-size:min(20vw,96px);line-height:.85;text-transform:uppercase;margin:56px 0 0;text-align:center"><span class="tall">Soirées</span></h1>
     <div class="script" style="text-align:center;font-size:46px;margin-top:-18px;transform:rotate(-5deg)">symposium</div>
     <div class="rule mono">${gs.length} réunion${gs.length>1?"s":""} de la confrérie</div>
-    ${gs.length?gs.map(([k,list])=>{const[d,name]=k.split("|");const best=list.slice().sort((a,b)=>(avg(b)??-1)-(avg(a)??-1))[0];const who=new Set(list.flatMap(e=>(e.scores||[]).map(s=>s.who)));const y=d?d.slice(0,4):"";
-      return `<div class="soiree" data-s="${esc(k)}"><span class="rn mono">${roman(y)}</span>
-        <div class="mono">${esc(fmtDate(d))}${list[0].place?" · "+esc(list[0].place):""}</div>
+    <div class="actions" style="margin-top:0"><button class="btn red" id="newSess">+ Nouvelle soirée</button></div>
+    ${gs.length?gs.map(([k,list,sx])=>{const[d,name]=k.split("|");const best=list.slice().sort((a,b)=>(avg(b)??-1)-(avg(a)??-1))[0];const who=new Set(list.flatMap(e=>(e.scores||[]).map(s=>s.who)));const y=d?d.slice(0,4):"";
+      return `<div class="soiree ${sx.active?"on":""}" data-s="${esc(k)}"><span class="rn mono">${sx.active?'<span class="badge">En cours</span>':roman(y)}</span>
+        <div class="mono">${esc(fmtDate(d))}${sx.place?" · "+esc(sx.place):""}</div>
         <h3>${esc(name||"Sans titre")}</h3>
         <div class="note">${list.length} vin${list.length>1?"s":""} · ${who.size} palais</div>
         ${best&&avg(best)!=null?`<div class="row-between" style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px"><span class="mono">Couronné</span><span><span style="font-family:var(--display);font-size:20px;text-transform:uppercase">${esc(best.name||best.producer)}</span> <span class="mono b">${fmtScore(avg(best))}</span></span></div>`:""}
@@ -884,22 +1012,33 @@ function viewSoirees(){
   </section>`;
 }
 function bindTabs(v){$$("[data-tab]",v).forEach(b=>b.onclick=()=>{if(route.name!==b.dataset.tab)go(b.dataset.tab,null,true)})}
-bind.soirees=v=>{bindTabs(v);$$("[data-s]",v).forEach(c=>c.onclick=()=>go("soiree",c.dataset.s))};
+bind.soirees=v=>{bindTabs(v);$("#newSess",v).onclick=newSessionFlow;$$("[data-s]",v).forEach(c=>c.onclick=()=>go("soiree",c.dataset.s))};
 function viewSoiree(k){
-  const list=entries().filter(e=>sessionKey(e)===k).sort((a,b)=>(avg(b)??-1)-(avg(a)??-1));
+  const X=sessionsAll().find(x=>x.key===k);
+  if(!X) return `<section class="wrap"><div style="padding-top:8px"><button class="linkbtn" onclick="history.back()">← Soirées</button></div><div class="empty">Cette soirée n'a plus de vins.</div></section>`;
+  const list=X.list.slice().sort((a,b)=>(avg(b)??-1)-(avg(a)??-1));
   const[d,name]=(k||"|").split("|"); const nos=catalogNo();
   const who={};list.forEach(e=>(e.scores||[]).forEach(s=>{const v=parseFloat(s.score);if(!isNaN(v))(who[s.who]=who[s.who]||[]).push(v)}));
   return `<section class="wrap">
     <div style="padding-top:8px"><button class="linkbtn" onclick="history.back()">← Soirées</button></div>
-    <div class="mono" style="margin-top:40px;text-align:center">${esc(fmtDate(d))}${list[0]&&list[0].place?" · "+esc(list[0].place):""}</div>
+    <div class="mono" style="margin-top:40px;text-align:center">${X.active?'<span class="badge" style="margin:0 8px 0 0">En cours</span>':""}${esc(fmtDate(d))}${X.place?" · "+esc(X.place):""}</div>
     <h1 style="font-family:var(--display);font-weight:400;font-size:min(14vw,68px);line-height:.88;text-transform:uppercase;margin:18px 0 0;text-align:center">${esc(name||"Soirée")}</h1>
     <div class="script" style="text-align:center;font-size:40px;margin-top:-10px;transform:rotate(-5deg)">${roman(d.slice(0,4))||"convivium"}</div>
+    <div class="actions" style="margin-top:28px"><button class="btn red" id="sAdd">+ Inscrire un vin</button><button class="btn" id="sLink">Choisir des vins</button></div>
+    <div class="row-between" style="margin-top:14px"><button class="linkbtn" id="sEdit">Modifier la soirée</button><button class="linkbtn" id="sAct">${X.active?"Terminer la soirée en cours":"C'est la soirée en cours"}</button></div>
     <div class="section"><div class="sec-h"><span class="num">I</span><h4>Classement</h4></div>
+      ${list.length?"":`<p class="note">Aucun vin pour l'instant. Inscris-en un, ou choisis des vins déjà dans la cave.</p>`}
       <div class="podium">${list.map((e,i)=>`<div class="p" data-wine="${e.id}"><span class="rk">${roman(i+1)}</span><div><div class="t">${esc(e.name||e.producer)}</div><div class="s">${esc([e.producer,e.vintage].filter(Boolean).join(" · "))}</div></div><span class="big" style="font-size:32px">${fmtScore(avg(e))}</span></div>`).join("")}</div></div>
     ${Object.keys(who).length?`<div class="section"><div class="sec-h"><span class="num">II</span><h4>Les palais</h4></div>${Object.entries(who).map(([n,s])=>`<div class="hbar"><span class="mono b">${esc(n)}</span><div class="trk"><i style="width:${(s.reduce((a,b)=>a+b,0)/s.length)/20*100}%"></i></div><span class="mono">${fmtScore(s.reduce((a,b)=>a+b,0)/s.length)}</span></div>`).join("")}<p class="note">Moyenne des notes données par chacun ce soir-là.</p></div>`:""}
   </section>`;
 }
-bind.soiree=v=>bindCards(v);
+bind.soiree=v=>{
+  bindCards(v); const X=sessionsAll().find(x=>x.key===route.id); if(!X) return;
+  $("#sAdd",v).onclick=()=>{draft=blankEntry({name:X.name,date:X.date,place:X.place});go("edit")};
+  $("#sLink",v).onclick=()=>manageWines(X);
+  $("#sEdit",v).onclick=()=>editSession(X);
+  $("#sAct",v).onclick=()=>{if(X.active){setActive(null);toast("Soirée terminée")}else{setActive(X);toast("Les prochains vins iront dans cette soirée")}render(true)};
+};
 
 /* ============ VUE : PALMARÈS ============ */
 function viewPalmares(){
