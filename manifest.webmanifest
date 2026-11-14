@@ -1,17 +1,31 @@
 {
+  "id": "./",
   "name": "In Vino - Liber Degustationum",
   "short_name": "In Vino",
-  "description": "Le carnet de dégustation de la confrérie.",
+  "description": "Le carnet de dégustation de la confrérie : vos vins, vos notes, la carte des terroirs.",
   "lang": "fr",
+  "dir": "ltr",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "display_override": ["standalone"],
   "orientation": "portrait",
   "background_color": "#0b0a0a",
   "theme_color": "#0b0a0a",
+  "categories": ["food", "lifestyle"],
+  "prefer_related_applications": false,
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "screenshots": [
+    { "src": "capture-cave.webp", "sizes": "780x1688", "type": "image/webp", "form_factor": "narrow", "label": "La cave" },
+    { "src": "capture-carte.webp", "sizes": "780x1688", "type": "image/webp", "form_factor": "narrow", "label": "La carte des terroirs" },
+    { "src": "capture-vin.webp", "sizes": "780x1688", "type": "image/webp", "form_factor": "narrow", "label": "La fiche d'un vin" }
+  ],
+  "shortcuts": [
+    { "name": "Inscrire un vin", "short_name": "Nouveau vin", "url": "./#nouveau", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
+    { "name": "La carte", "short_name": "Carte", "url": "./#carte", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] }
   ]
 }
