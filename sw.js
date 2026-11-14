@@ -1,6 +1,6 @@
 // In Vino - service worker : l'app fonctionne hors-ligne.
 // Les appels à api.github.com ne sont jamais mis en cache.
-const CACHE = "invino-v2";
+const CACHE = "invino-v3";
 const SHELL = [
   "./", "./index.html", "./manifest.webmanifest",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",

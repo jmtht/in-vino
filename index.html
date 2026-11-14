@@ -881,7 +881,10 @@ function viewConfrerie(){
         <div class="field"><label class="mono">Propriétaire GitHub</label><input type="text" id="cfOwner" placeholder="ton-pseudo" autocapitalize="off" autocomplete="off"></div>
         <div class="field"><label class="mono">Nom du dépôt de données</label><input type="text" id="cfRepo" placeholder="in-vino-data" autocapitalize="off" autocomplete="off"></div>
         <div class="field"><label class="mono">Jeton d'accès (fine-grained)</label><input type="text" id="cfToken" placeholder="github_pat_…" autocapitalize="off" autocomplete="off" spellcheck="false"></div>
-        <div class="actions"><button class="btn red" id="link">Relier la cave</button></div>`}
+        <div class="actions"><button class="btn red" id="link">Relier la cave</button></div>
+        <div class="rule mono">ou</div>
+        <div class="field"><label class="mono">J'ai reçu un lien d'invitation</label><input type="text" id="invPaste" placeholder="Colle le lien ici" autocapitalize="off" autocomplete="off" spellcheck="false"></div>
+        <div class="actions"><button class="btn fill" id="joinBtn">Rejoindre la confrérie</button></div>`}
     </div>
 
     <div class="section"><div class="sec-h"><span class="num">IV</span><h4>Archives</h4></div>
@@ -905,6 +908,7 @@ bind.confrerie=v=>{
     if(!cfg.owner||!cfg.repo||!cfg.token){toast("Remplis les trois champs");return}
     await linkRepo(cfg);
   };
+  const jb=$("#joinBtn",v); if(jb) jb.onclick=()=>handleInvite($("#invPaste",v).value.trim());
   const sn=$("#syncNow",v); if(sn) sn.onclick=()=>sync(true);
   const inv=$("#invite",v); if(inv) inv.onclick=async()=>{const url=inviteLink();
     if(navigator.share){try{await navigator.share({title:"In Vino",text:"Rejoins notre cave de dégustation :",url});return}catch(e){if(e.name==="AbortError")return}}
@@ -935,9 +939,10 @@ async function importAll(ev){
 }
 
 /* ============ INVITATION ============ */
-async function handleInvite(){
-  const m=location.hash.match(/invite=([\w-]+)/); if(!m) return;
-  history.replaceState(null,"",location.pathname);
+async function handleInvite(src){
+  const fromHash=typeof src!=="string";
+  const m=(fromHash?location.hash:src).match(/invite=([\w-]+)/); if(!m){ if(!fromHash) toast("Ce n'est pas un lien d'invitation"); return }
+  if(fromHash) history.replaceState(null,"",location.pathname);
   let cfg; try{const s=m[1].replace(/-/g,"+").replace(/_/g,"/");const j=JSON.parse(decodeURIComponent(escape(atob(s))));cfg={owner:j.o,repo:j.r,branch:j.b||"main",token:j.t}}catch(e){toast("Lien d'invitation invalide");return}
   const md=document.createElement("div");md.className="modal";
   md.innerHTML=`<div class="sheet form"><div class="mono">Invitation</div><h3>Rejoindre la confrérie</h3><p class="note">Cette cave est partagée par vos amis. Dis-nous qui tu es pour pré-remplir tes notes.</p>
