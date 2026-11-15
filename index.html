@@ -1508,6 +1508,7 @@ function viewConfrerie(){
 
     <div class="section"><div class="sec-h"><span class="num">✦</span><h4>Ambiance</h4></div>
       <div class="member"><span><span class="n" style="font-size:20px">Sons</span><br><span class="note" style="font-size:14px">Bouchon, vin qui coule (le mode silencieux de l'iPhone les coupe)</span></span><button class="chip ${FXCFG.sound?"on":""}" data-fxt="iv_sound">${FXCFG.sound?"Activés":"Coupés"}</button></div>
+      <p class="note" style="font-size:12px;opacity:.6;margin:4px 0 10px">Crédits sons : « Wine Cork Pull Pop » et « Generous Wine Pour » par BudgetPixel AI (<a href="https://budgetpixel.com/sfx/wine-cork-pull-pop-37f59e23" target="_blank" rel="noopener">bouchon</a>, <a href="https://budgetpixel.com/sfx/generous-wine-pour-822c1532" target="_blank" rel="noopener">service</a>), licence <a href="https://creativecommons.org/licenses/by/4.0/deed.fr" target="_blank" rel="noopener">CC BY 4.0</a>, montés et retravaillés pour In Vino.</p>
       <div class="member"><span><span class="n" style="font-size:20px">Écran d'ouverture</span><br><span class="note" style="font-size:14px">La bouteille qui se débouche au lancement</span></span><button class="chip ${FXCFG.splash?"on":""}" data-fxt="iv_splash">${FXCFG.splash?"Activé":"Coupé"}</button></div>
       <div class="member"><span><span class="n" style="font-size:20px">Notifications</span><br><span class="note" style="font-size:14px">Quand un ami ajoute une bouteille ou qu'on sert, si l'app est ouverte ou en arrière-plan</span></span><button class="chip ${FXCFG.notif&&("Notification" in window)&&Notification.permission==="granted"?"on":""}" id="notifBtn">${FXCFG.notif&&("Notification" in window)&&Notification.permission==="granted"?"Activées":"Activer"}</button></div>
       <div class="actions"><button class="btn ghost small" id="fxTry">Essayer : on débouche !</button></div>
@@ -2619,7 +2620,7 @@ bind.livre=v=>{ $("[data-print]",v).onclick=async()=>{ toast("Préparation du li
   setTimeout(()=>window.print(),300) } };
 
 
-/* ============ SONS (synthétisés, aucun fichier) ============ */
+/* ============ SONS (vrais enregistrements) ============ */
 const FXCFG={get sound(){return localStorage.getItem("iv_sound")!=="0"},get splash(){return localStorage.getItem("iv_splash")!=="0"},get notif(){return localStorage.getItem("iv_notif")==="1"}};
 let AC=null;
 function audio(){ if(!FXCFG.sound) return null; try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); if(AC.state==="suspended") AC.resume(); return AC }catch(e){return null} }
