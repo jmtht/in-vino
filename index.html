@@ -441,6 +441,7 @@ details.preg .sw{width:12px;height:12px;border-radius:50%}details.preg .rn{font-
 .fx-splash.opened .fx-title{opacity:1;transform:none}.fx-splash.opened .fx-title .script{clip-path:inset(0 0 0 0)}
 .fx-splash .fx-svg{height:min(56vh,480px);height:min(56dvh,480px);margin-top:-12vh}
 .fx-caption{position:absolute;top:calc(8vh + var(--safe-t));left:0;right:0;text-align:center;padding:0 20px;animation:rise .8s .2s both}
+.fx-sante{font-size:min(12vw,54px);margin-top:4px;transform:rotate(-6deg);clip-path:inset(0 100% 0 0);transition:clip-path .9s cubic-bezier(.5,0,.2,1)}.fx-pour.clinked .fx-sante{clip-path:inset(0 0 0 0)}
 .fx-caption h2{margin:30px 0 0;font-family:var(--display);font-weight:400;font-size:min(12vw,56px);line-height:.9;text-transform:uppercase;overflow-wrap:anywhere}
 .notif{position:fixed;top:calc(10px + var(--safe-t));left:50%;transform:translateX(-50%);z-index:96;width:min(94vw,520px);display:flex;gap:12px;align-items:center;padding:12px 14px;background:rgba(20,18,18,.96);border:1px solid rgba(236,230,218,.22);box-shadow:0 14px 40px rgba(0,0,0,.6);animation:notifIn .5s cubic-bezier(.2,1.3,.4,1);cursor:pointer;transition:opacity .5s,transform .5s}
 .notif.out{opacity:0;transform:translate(-50%,-30px)}
@@ -1507,8 +1508,8 @@ function viewConfrerie(){
     </div>
 
     <div class="section"><div class="sec-h"><span class="num">✦</span><h4>Ambiance</h4></div>
-      <div class="member"><span><span class="n" style="font-size:20px">Sons</span><br><span class="note" style="font-size:14px">Bouchon, vin qui coule (le mode silencieux de l'iPhone les coupe)</span></span><button class="chip ${FXCFG.sound?"on":""}" data-fxt="iv_sound">${FXCFG.sound?"Activés":"Coupés"}</button></div>
-      <p class="note" style="font-size:12px;opacity:.6;margin:4px 0 10px">Crédits sons : « Wine Cork Pull Pop » et « Generous Wine Pour » par BudgetPixel AI (<a href="https://budgetpixel.com/sfx/wine-cork-pull-pop-37f59e23" target="_blank" rel="noopener">bouchon</a>, <a href="https://budgetpixel.com/sfx/generous-wine-pour-822c1532" target="_blank" rel="noopener">service</a>), licence <a href="https://creativecommons.org/licenses/by/4.0/deed.fr" target="_blank" rel="noopener">CC BY 4.0</a>, montés et retravaillés pour In Vino.</p>
+      <div class="member"><span><span class="n" style="font-size:20px">Sons</span><br><span class="note" style="font-size:14px">Bouchon, vin qui coule, tchin (le mode silencieux de l'iPhone les coupe)</span></span><button class="chip ${FXCFG.sound?"on":""}" data-fxt="iv_sound">${FXCFG.sound?"Activés":"Coupés"}</button></div>
+      <p class="note" style="font-size:12px;opacity:.6;margin:4px 0 10px">Crédits sons : bouchon, service et tchin-tchin de <a href="https://lasonotheque.org" target="_blank" rel="noopener">La Sonothèque</a> (Joseph Sardin), montés pour In Vino.</p>
       <div class="member"><span><span class="n" style="font-size:20px">Écran d'ouverture</span><br><span class="note" style="font-size:14px">La bouteille qui se débouche au lancement</span></span><button class="chip ${FXCFG.splash?"on":""}" data-fxt="iv_splash">${FXCFG.splash?"Activé":"Coupé"}</button></div>
       <div class="member"><span><span class="n" style="font-size:20px">Notifications</span><br><span class="note" style="font-size:14px">Quand un ami ajoute une bouteille ou qu'on sert, si l'app est ouverte ou en arrière-plan</span></span><button class="chip ${FXCFG.notif&&("Notification" in window)&&Notification.permission==="granted"?"on":""}" id="notifBtn">${FXCFG.notif&&("Notification" in window)&&Notification.permission==="granted"?"Activées":"Activer"}</button></div>
       <div class="actions"><button class="btn ghost small" id="fxTry">Essayer : on débouche !</button></div>
@@ -2627,14 +2628,14 @@ function audio(){ if(!FXCFG.sound) return null; try{ AC=AC||new (window.AudioCon
 document.addEventListener("pointerdown",()=>{ if(FXCFG.sound&&(!AC||AC.state!=="running")) audio() },{capture:true,passive:true});
 /* Les sons sont de vrais enregistrements : son-bouchon.mp3 et son-service.mp3, à côté de index.html.
    Le moment du « POP » est repéré automatiquement dans le fichier (pic de volume) pour tomber pile avec l'animation. */
-const SND_FILES={pop:"son-bouchon.mp3",pour:"son-service.mp3"}, SND={};
+const SND_FILES={pop:"son-bouchon.mp3",pour:"son-service.mp3",tchin:"son-tchin.mp3"}, SND={};
 function loadSnd(k){ if(SND[k]) return SND[k];
   return SND[k]=fetch(SND_FILES[k]).then(r=>{if(!r.ok)throw 0;return r.arrayBuffer()}).then(ab=>{
     const ac=AC||new (window.AudioContext||window.webkitAudioContext)(); AC=AC||ac;
     return new Promise((res,rej)=>ac.decodeAudioData(ab,res,rej)) }).then(buf=>{
     const d=buf.getChannelData(0); let mx=0,at=0; for(let i=0;i<d.length;i++){const v=Math.abs(d[i]);if(v>mx){mx=v;at=i}}
     return {buf,peak:at/buf.sampleRate} }).catch(()=>null) }
-function preloadSnd(){ if(FXCFG.sound){ loadSnd("pop"); loadSnd("pour") } }
+function preloadSnd(){ if(FXCFG.sound){ loadSnd("pop"); loadSnd("pour"); loadSnd("tchin") } }
 async function playSnd(k,at,{align="peak",dur=0,vol=1}={}){
   const ac=audio(); if(!ac) return; const s=await loadSnd(k); if(!s) return;
   const src=ac.createBufferSource(), g=ac.createGain(); src.buffer=s.buf; src.connect(g).connect(ac.destination);
@@ -2688,35 +2689,55 @@ function splashOpen(){
   m.onclick=()=>{ m.classList.add("bye"); setTimeout(()=>m.remove(),400) };
 }
 
-/* ---- on débouche et on sert ---- */
+/* ---- on débouche, on sert, on trinque ---- */
 function pourFX({color="rouge",title="",sub="",secret=false}={}){
   if(REDUCED){ sndPop(); return }
   const wine=wineTone(color,secret);
+  const bowl=(id,full)=>`<g clip-path="url(#${id})"><g class="fx-lvl" style="transform-box:view-box;transform-origin:140px 400px"><g class="${full?"":"fx-fill"}" style="transform:translateY(${full?0:60}px)"><path class="${full?"":"fx-wave"}" d="M60 372q15 -4 30 0t30 0t30 0t30 0t30 0t30 0V440H60Z" fill="${wine}" opacity=".92"/></g></g></g>`;
+  const glassLines=cls=>`<path class="${cls}" d="${GLASS_D}" fill="none" stroke="#ece6da" stroke-width="1.6" pathLength="1"/><path class="${cls}" d="M140 426V476M114 478H166" fill="none" stroke="#ece6da" stroke-width="1.6" pathLength="1"/>`;
+  const G0="transform-box:view-box;transform-origin:140px 478px";
+  const sparks=[-150,-115,-80,-50,-20,15].map(d=>`<g transform="rotate(${d+90})"><line class="fx-spark" x1="0" y1="-14" x2="0" y2="-30" stroke="${d%2?"#ece6da":"#c9a06a"}" stroke-width="1.4" stroke-linecap="round" opacity="0"/></g>`).join("");
   const m=document.createElement("div"); m.className="fx fx-pour";
   m.innerHTML=`<svg viewBox="0 0 400 520" class="fx-svg">
-      <defs><clipPath id="fxBowl"><path d="${GLASS_D}Z"/></clipPath></defs>
-      <g clip-path="url(#fxBowl)"><g class="fx-fill" style="transform:translateY(60px)"><path class="fx-wave" d="M60 372q15 -4 30 0t30 0t30 0t30 0t30 0t30 0V440H60Z" fill="${wine}" opacity=".92"/></g></g>
-      <path class="lb-draw" d="${GLASS_D}" fill="none" stroke="#ece6da" stroke-width="1.6" pathLength="1"/>
-      <path class="lb-draw" d="M140 426V476M114 478H166" fill="none" stroke="#ece6da" stroke-width="1.6" pathLength="1"/>
-      ${ring(140,372,"fx-ring2")}
+      <defs><clipPath id="fxBowl"><path d="${GLASS_D}Z"/></clipPath><clipPath id="fxBowl2"><path d="${GLASS_D}Z"/></clipPath></defs>
+      <g class="fx-gA" style="${G0}">${bowl("fxBowl",false)}${glassLines("lb-draw")}${ring(140,372,"fx-ring2")}</g>
+      <g class="fx-gB" style="${G0};opacity:0;transform:translateX(330px) rotate(0deg)">${bowl("fxBowl2",true)}${glassLines("")}</g>
       <line class="fx-stream" x1="140" y1="300" x2="140" y2="418" stroke="${wine}" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="120" stroke-dashoffset="120"/>
-      <g class="fx-bot" style="transform-box:view-box;transform-origin:0 0;transform:translate(272px,236px) rotate(0deg) translate(0px,-80px) scale(.8)">${lineBottle()}${ring(0,-104,"fx-ring")}</g></svg>
-    <div class="fx-caption"><div class="mono b">${esc(sub)}</div><h2><span class="tall">${esc(title)}</span></h2></div>`;
+      <g class="fx-bot" style="transform-box:view-box;transform-origin:0 0;transform:translate(272px,236px) rotate(0deg) translate(0px,-80px) scale(.8)">${lineBottle()}${ring(0,-104,"fx-ring")}</g>
+      <g transform="translate(230 340)">${ring(0,0,"fx-ring3")}<g class="fx-sparks">${sparks}</g></g></svg>
+    <div class="fx-caption"><div class="mono b">${esc(sub)}</div><h2><span class="tall">${esc(title)}</span></h2><div class="script fx-sante">Santé !</div></div>`;
   document.body.appendChild(m);
-  const T=fxTime(), q=s=>$(s,m), timers=[];
-  const bot=q(".fx-bot"), stream=q(".fx-stream"), fill=q(".fx-fill"), wave=q(".fx-wave"), r2=q(".fx-ring2");
+  const T=fxTime(), q=s=>$(s,m), timers=[], at=(ms,f)=>timers.push(setTimeout(f,ms));
+  const bot=q(".fx-bot"), stream=q(".fx-stream"), fill=q(".fx-fill"), wave=q(".fx-wave"), r2=q(".fx-ring2"), gA=q(".fx-gA"), gB=q(".fx-gB");
   const up="translate(272px,236px) rotate(0deg) translate(0px,-80px) scale(.8)", tilt="translate(277px,266px) rotate(-104deg) translate(0px,-80px) scale(.8)";
+  const CLINK=5200;
   drawLines(m,0,700);
-  popAt(m,950,T);
-  if(T.ac) sndPour(T.t0+2.0,1.7);
-  timers.push(setTimeout(()=>anim(bot,[{transform:up},{transform:tilt}],{duration:700,easing:"cubic-bezier(.6,0,.2,1)"}),1350));
-  timers.push(setTimeout(()=>{ anim(stream,[{strokeDashoffset:120},{strokeDashoffset:0}],{duration:280,easing:"ease-in"});
-    anim(fill,[{transform:"translateY(60px)"},{transform:"translateY(0px)"}],{duration:1600,delay:150,easing:"cubic-bezier(.3,.2,.3,1)"});
-    anim(wave,[{transform:"translateX(0)"},{transform:"translateX(-60px)"}],{duration:1400,iterations:3,easing:"linear"});
-    anim(r2,[{transform:"scale(1)",opacity:.6},{transform:"scale(6)",opacity:0}],{duration:1000,delay:1500,easing:"ease-out"});
-  },2000));
-  timers.push(setTimeout(()=>{ anim(stream,[{strokeDashoffset:0},{strokeDashoffset:-120}],{duration:300,easing:"ease-out"}); anim(bot,[{transform:tilt},{transform:up}],{duration:650,easing:"cubic-bezier(.6,0,.2,1)"}) },3650));
-  timers.push(setTimeout(()=>{ m.classList.add("bye"); setTimeout(()=>m.remove(),600) },4300));
+  /* acte 1 : le bouchon */
+  popAt(m,1100,T);
+  /* acte 2 : le service */
+  if(T.ac) playSnd("pour",T.t0+2.0,{align:"start",dur:2.8});
+  at(1400,()=>anim(bot,[{transform:up},{transform:tilt}],{duration:650,easing:"cubic-bezier(.6,0,.2,1)"}));
+  at(2000,()=>{ anim(stream,[{strokeDashoffset:120},{strokeDashoffset:0}],{duration:280,easing:"ease-in"});
+    anim(fill,[{transform:"translateY(60px)"},{transform:"translateY(0px)"}],{duration:2100,delay:150,easing:"cubic-bezier(.3,.2,.3,1)"});
+    anim(wave,[{transform:"translateX(0)"},{transform:"translateX(-60px)"}],{duration:1300,iterations:4,easing:"linear"});
+    anim(r2,[{transform:"scale(1)",opacity:.6},{transform:"scale(6)",opacity:0}],{duration:1000,delay:1900,easing:"ease-out"}) });
+  at(4250,()=>{ anim(stream,[{strokeDashoffset:0},{strokeDashoffset:-120}],{duration:300,easing:"ease-out"});
+    anim(bot,[{transform:tilt,opacity:1},{transform:up,opacity:1,offset:.6},{transform:up.replace("translate(0px,-80px)","translate(0px,-120px)"),opacity:0}],{duration:900,easing:"cubic-bezier(.6,0,.2,1)"}) });
+  /* acte 3 : tchin */
+  if(T.ac) playSnd("tchin",T.t0+CLINK/1000,{align:"peak"});
+  const lvlA=$(".fx-lvl",gA), lvlB=$(".fx-lvl",gB);
+  const swing=(g,lvl,kf,o)=>{ anim(g,kf.map(([x,d,op])=>Object.assign({transform:`translateX(${x}px) rotate(${d}deg)`},op==null?{}:{opacity:op})),o);
+    anim(lvl,kf.map(([x,d])=>({transform:`rotate(${-d}deg)`})),o) };
+  at(CLINK-560,()=>{ const o={duration:560,easing:"cubic-bezier(.55,0,.85,.35)"};
+    swing(gA,lvlA,[[0,0],[20,12]],o);
+    swing(gB,lvlB,[[330,0,0],[250,-4,1],[160,-12,1]],o) });
+  at(CLINK,()=>{ buzz(20); const o={duration:700,easing:"cubic-bezier(.2,.8,.2,1)"};
+    swing(gA,lvlA,[[20,12],[13,8.5],[16,10.5]],o);
+    swing(gB,lvlB,[[160,-12,1],[167,-8.5,1],[164,-10.5,1]],o);
+    anim(q(".fx-ring3"),[{transform:"scale(1)",opacity:.9},{transform:"scale(9)",opacity:0}],{duration:1100,easing:"cubic-bezier(.1,.7,.3,1)"});
+    $$(".fx-spark",m).forEach((l,i)=>anim(l,[{transform:"translateY(0)",opacity:1},{transform:"translateY(-16px)",opacity:0}],{duration:650,delay:i*18,easing:"cubic-bezier(.1,.7,.3,1)"}));
+    m.classList.add("clinked") });
+  at(CLINK+1500,()=>{ m.classList.add("bye"); setTimeout(()=>m.remove(),600) });
   m.onclick=()=>{ timers.forEach(clearTimeout); m.classList.add("bye"); setTimeout(()=>m.remove(),400) };
 }
 
