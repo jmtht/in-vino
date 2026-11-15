@@ -152,6 +152,24 @@ select.plain{background:none;border:0;font-family:var(--mono);font-size:10px;let
 .linkbtn{background:none;border:0;padding:0;cursor:pointer;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--bone2);text-decoration:underline;text-underline-offset:4px}
 
 /* FORM */
+.gp-chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px}.gp-chips:empty{display:none}
+.gp-chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--bone2);border-radius:999px;padding:5px 6px 5px 12px;background:var(--ink3);color:var(--bone);font-family:var(--serif);font-size:17px;cursor:pointer}
+.gp-chip b{font-weight:400;font-size:17px;line-height:1;width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:var(--stone)}
+.gp-chip.unk{border-style:dashed}
+.gp-tip{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin:8px 0;padding:10px 12px;border-left:2px solid var(--crimson);background:rgba(179,36,28,.08);font-size:16px}
+.gp-tip b{color:var(--bone);font-weight:500}
+.gp-bar{display:flex;align-items:center;gap:8px}.gp-bar .gp-q{flex:1}
+.gp-tog{background:none;border:1px solid var(--line);color:var(--bone2);width:34px;height:30px;cursor:pointer;transition:transform .25s}.gp.open .gp-tog{transform:rotate(180deg)}
+.gp-list{max-height:300px;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;margin-top:8px;border:1px solid var(--line);background:var(--ink2);animation:fade .2s}
+.gp-h{position:sticky;top:0;z-index:1;background:var(--ink3);padding:7px 12px;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--stone)}
+.gp-it{display:flex;align-items:center;gap:12px;width:100%;padding:10px 12px;background:none;border:0;border-bottom:1px solid rgba(236,230,218,.06);color:var(--bone);font-family:var(--serif);font-size:18px;text-align:left;cursor:pointer}
+.gp-it .gp-n{flex:1}
+.gp-box{flex:none;width:16px;height:16px;border:1px solid var(--stone);position:relative;transition:background .15s,border-color .15s}
+.gp-it.on .gp-box{background:var(--crimson);border-color:var(--crimson)}
+.gp-it.on .gp-box::after{content:"";position:absolute;left:4.5px;top:1px;width:4px;height:9px;border:solid var(--bone);border-width:0 1.6px 1.6px 0;transform:rotate(45deg)}
+.gp-c{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--stone)}.gp-c.r{color:#c4554c}.gp-c.b{color:#cdb57a}
+.gp-add{display:block;width:100%;padding:12px;background:none;border:0;color:var(--bone);font-family:var(--serif);font-size:18px;text-align:left;cursor:pointer}.gp-add .mono{color:var(--crimson);margin-right:6px}
+.gp-none{padding:12px;color:var(--stone);font-style:italic;font-size:16px}
 .form .field{padding:10px 0;border-bottom:1px solid var(--line)}
 .form label.mono{display:block;margin-bottom:4px}
 .form input[type=text],.form input[type=number],.form input[type=date],.form textarea,.form select{width:100%;background:none;border:0;outline:0;font-family:var(--serif);font-size:21px;color:var(--bone);padding:2px 0;-webkit-appearance:none;appearance:none;border-radius:0}
@@ -1158,7 +1176,11 @@ function viewEdit(id){
       <div class="field"><label class="mono">Région</label><input type="text" data-k="region" value="${esc(e.region)}" list="dlReg" placeholder="Rhône" autocomplete="off">${datalist("dlReg",[...(HAS_MAP?Object.values(VIN_REGIONS).map(r=>r.name):["Alsace","Beaujolais","Bordeaux","Bourgogne","Champagne","Corse","Jura","Languedoc","Loire","Provence","Rhône","Roussillon","Savoie","Sud-Ouest"]),...all.map(x=>x.region)])}</div>
       <div class="field"><label class="mono">Pays</label><input type="text" data-k="country" value="${esc(e.country)}" list="dlCty" autocomplete="off">${datalist("dlCty",["France","Italie","Espagne","Portugal","Allemagne","Autriche","Suisse","Grèce","Géorgie","Liban","États-Unis","Argentine","Chili","Afrique du Sud","Australie","Nouvelle-Zélande",...all.map(x=>x.country)])}</div>
     </div>
-    <div class="field"><label class="mono">Cépages (séparés par des virgules)</label><input type="text" data-k="grapes" value="${esc((e.grapes||[]).join(", "))}" list="dlGr" placeholder="Syrah, Grenache" autocomplete="off">${datalist("dlGr",["Cabernet Sauvignon","Cabernet Franc","Merlot","Pinot Noir","Syrah","Grenache","Mourvèdre","Gamay","Malbec","Carignan","Cinsault","Chardonnay","Sauvignon Blanc","Chenin","Riesling","Gewurztraminer","Viognier","Marsanne","Roussanne","Sémillon","Savagnin","Melon de Bourgogne","Aligoté","Nebbiolo","Sangiovese","Tempranillo",...all.flatMap(x=>x.grapes||[])])}</div>
+    <div class="field gp" id="grapePick"><label class="mono">Cépages</label>
+      <div class="gp-chips"></div><div class="gp-fix"></div>
+      <div class="gp-bar"><input type="text" class="gp-q" placeholder="${(e.grapes||[]).length?"Ajouter un cépage…":"Choisir les cépages…"}" autocomplete="off" autocapitalize="words" enterkeyhint="done"><button type="button" class="gp-tog mono b" aria-label="Ouvrir la liste">▾</button></div>
+      <div class="gp-list" hidden></div>
+    </div>
     <div class="grid2">
       <div class="field"><label class="mono">Prix €</label><input type="text" inputmode="decimal" data-k="price" value="${esc(e.price)}" placeholder="24"></div>
       <div class="field"><label class="mono">Acheté à</label><input type="text" data-k="where" value="${esc(e.where)}" list="dlWh" placeholder="Caviste…" autocomplete="off">${datalist("dlWh",all.map(x=>x.where))}</div>
@@ -1224,10 +1246,79 @@ function scoreRowHTML(s,i){
     <textarea data-comment="${i}" placeholder="Son avis en une phrase…">${esc(s.comment)}</textarea>
   </div>`;
 }
+/* ============ CÉPAGES : liste à cocher, ajout libre, correction d'orthographe ============ */
+const GRAPE_R="Abouriou,Agiorgitiko,Aglianico,Aleatico,Alfrocheiro,Alicante Bouschet,Aramon,Arinarnoa,Aspiran,Baga,Barbera,Bastardo,Blaufränkisch,Bobal,Bonarda,Bourboulenc noir,Brachetto,Braquet,Cabernet Dorsa,Cabernet Franc,Cabernet Sauvignon,Caladoc,Calitor,Canaiolo,Cannonau,Carcajolu,Carignan,Carignano,Cariñena,Carménère,Castelão,Castets,Cesanese,Chatus,Ciliegiolo,Cinsault,Colorino,Cornalin,Corvina,Counoise,César,Côt,Dolcetto,Dornfelder,Duras,Durif,Fer Servadou,Fetească Neagră,Folle Noire,Frappato,Freisa,Gaglioppo,Gamay,Gamay de Bouze,Garnacha,Graciano,Grenache,Grignolino,Grolleau,Gros Manseng noir,Gros Manseng rouge,Humagne Rouge,Jaen,Juan García,Jurançon noir,Kadarka,Kékfrankos,Lacrima,Lagrein,Lambrusco,Listán Negro,Lledoner Pelut,Malbec,Mammolo,Mandilaria,Marselan,Marzemino,Maturana,Mavrud,Mazuelo,Mencía,Merenzao,Merlot,Meunier,Minustellu,Mollard,Monastrell,Mondeuse,Montepulciano,Moristel,Morrastel,Mourvèdre,Muscardin,Nebbiolo,Negroamaro,Nerello Mascalese,Nero d'Avola,Nielluccio,Négrette,Pelaverga,Persan,Petit Verdot,Petite Sirah,Picpoul noir,Piedirosso,Pineau d'Aunis,Pinot Meunier,Pinot Noir,Pinotage,Plavac Mali,Ploussard,Poulsard,Prieto Picudo,Primitivo,Prunelard,Refosco,Regent,Ruché,Sagrantino,Saint-Laurent,Sangiovese,Saperavi,Schiava,Sciaccarellu,Shiraz,Sousão,Spätburgunder,Susumaniello,Syrah,Tannat,Tempranillo,Teroldego,Terret noir,Tibouren,Tinta Barroca,Tinta de Toro,Tinta Roriz,Tinto Cão,Tinto Fino,Touriga Franca,Touriga Nacional,Trincadeira,Trousseau,Uva di Troia,Vaccarèse,Valdiguié,Vinhão,Xinomavro,Zinfandel,Zweigelt", GRAPE_B="Airén,Albana,Albariño,Aligoté,Altesse,Alvarinho,Antão Vaz,Arbane,Arinto,Arneis,Arrufiac,Assyrtiko,Athiri,Auxerrois,Bacchus,Barbaroux,Baroque,Biancu Gentile,Boal,Bourboulenc,Camaralet,Carricante,Catarratto,Chardonnay,Chardonnay musqué,Chasan,Chasselas,Chenin,Chenin Blanc,Clairette,Coda di Volpe,Colombard,Cortese,Courbu,Doña Blanca,Encruzado,Erbaluce,Falanghina,Fernão Pires,Fiano,Folle Blanche,Friulano,Furmint,Garganega,Garnacha Blanca,Gewurztraminer,Glera,Godello,Grecanico,Grechetto,Greco,Grenache Blanc,Grenache Gris,Grillo,Gringet,Gros Manseng,Gros Plant,Grüner Veltliner,Hondarrabi Zuri,Hárslevelű,Inzolia,Jacquère,Kerner,Kisi,Klevener de Heiligenstein,Lauzet,Len de l'El,Loin de l'œil,Loureiro,Macabeo,Macabeu,Malagousia,Malmsey,Malvasia,Malvasía,Malvoisie,Mancin,Marsanne,Mauzac,Melon,Melon de Bourgogne,Molette,Mondeuse blanche,Moscatel,Moscato,Moschofilero,Mtsvane,Muscadelle,Muscat,Muscat blanc,Muscat d'Alexandrie,Muscat Ottonel,Muscat à petits grains,Müller-Thurgau,Neuburger,Nosiola,Ondenc,Ortega,Palomino,Parellada,Passerina,Pecorino,Pedro Ximénez,Petit Courbu,Petit Manseng,Petit Meslier,Petite Arvine,Picpoul,Pinot Auxerrois,Pinot Blanc,Pinot Grigio,Pinot Gris,Ribolla Gialla,Riesling,Rivaner,Rkatsiteli,Robola,Rolle,Romorantin,Roter Veltliner,Rotgipfler,Roussanne,Roussette,Sacy,Sauvignon Blanc,Sauvignon Gris,Sauvignonasse,Savagnin,Savagnin rose,Scheurebe,Sercial,Silvaner,Sylvaner,Sémillon,Timorasso,Torrontés,Tourbat,Trebbiano,Treixadura,Tressallier,Ugni Blanc,Verdejo,Verdelho,Verdicchio,Vermentino,Vermentinu,Vernaccia,Vidiano,Viognier,Viura,Welschriesling,Xarel·lo,Zibibbo,Zierfandler";
+const gkey=s=>norm(s).replace(/[^a-z0-9]/g,"");
+function grapeCatalog(){ if(grapeCatalog.c) return grapeCatalog.c; const m=new Map();
+  const add=(n,c)=>{ n=String(n||"").replace(/\s*\(.*?\)\s*/g," ").trim(); if(!n) return; const k=gkey(n); if(!k) return; const o=m.get(k); if(!o) m.set(k,{n,c,k}); else if(!o.c&&c) o.c=c };
+  GRAPE_R.split(",").forEach(n=>add(n,"r")); GRAPE_B.split(",").forEach(n=>add(n,"b"));
+  if(HAS_MAP){ Object.values(VIN_REGIONS).forEach(R=>{(R.rouges||[]).forEach(n=>add(n,"r"));(R.blancs||[]).forEach(n=>add(n,"b"))});
+    Object.values(VIN_PAYS).forEach(P=>(P.cepages||[]).forEach(n=>add(n,""))); AOCS.forEach(a=>a.g.forEach(n=>add(n,""))) }
+  return grapeCatalog.c=[...m.values()].sort((a,b)=>a.n.localeCompare(b.n,"fr")) }
+function lev(a,b){ if(a===b) return 0; const v=Array.from({length:b.length+1},(_,i)=>i);
+  for(let i=1;i<=a.length;i++){ let p=v[0]; v[0]=i; for(let j=1;j<=b.length;j++){ const t=v[j]; v[j]=Math.min(v[j]+1,v[j-1]+1,p+(a[i-1]===b[j-1]?0:1)); p=t } } return v[b.length] }
+/* cépages de la liste qui s'écrivent presque pareil (fautes de frappe, accents, lettres inversées) */
+function grapeLike(q,max=3){ const k=gkey(q); if(k.length<3) return [];
+  const tol=k.length<=5?1:k.length<=9?2:3;
+  return grapeCatalog().map(g=>({g,d:lev(k,g.k)})).filter(x=>x.d>0&&x.d<=tol).sort((a,b)=>a.d-b.d||a.g.n.length-b.g.n.length).slice(0,max).map(x=>x.g) }
+function grapeKnown(n){ const k=gkey(n); return grapeCatalog().find(g=>g.k===k) }
+function bindGrapePicker(v,e){
+  const box=$("#grapePick",v); if(!box) return;
+  const chips=$(".gp-chips",box), fix=$(".gp-fix",box), q=$(".gp-q",box), list=$(".gp-list",box);
+  const sel=()=>e.grapes=(e.grapes||[]);
+  const has=n=>sel().some(x=>gkey(x)===gkey(n));
+  const save=arr=>{ setPath(e,"grapes",arr); paint() };
+  const toggle=n=>{ const a=sel(); save(has(n)?a.filter(x=>gkey(x)!==gkey(n)):[...a,n]) };
+  const COL={r:"rouge",b:"blanc"};
+  const row=(g,extra="")=>`<button type="button" class="gp-it${has(g.n)?" on":""}" data-g="${esc(g.n)}"><i class="gp-box"></i><span class="gp-n">${esc(g.n)}</span>${extra||(g.c?`<span class="mono gp-c ${g.c}">${COL[g.c]}</span>`:"")}</button>`;
+  function paintList(){
+    const t=q.value.trim(), k=gkey(t), cat=grapeCatalog(); let h="";
+    if(!k){
+      const A=matchAOC(e.appellation||""), sug=A?A.g.map(n=>grapeKnown(n)||{n,c:"",k:gkey(n)}):[];
+      const mine=sel().filter(n=>!grapeKnown(n)).map(n=>({n,c:"",k:gkey(n)}));
+      if(sug.length) h+=`<div class="gp-h mono">Pour ${esc(A.n)}</div>`+sug.map(g=>row(g)).join("");
+      if(mine.length) h+=`<div class="gp-h mono">Tes ajouts</div>`+mine.map(g=>row(g)).join("");
+      h+=`<div class="gp-h mono">Tous les cépages · ${cat.length}</div>`+cat.map(g=>row(g)).join("");
+    } else {
+      const hit=cat.filter(g=>g.k.includes(k)).sort((a,b)=>(b.k.startsWith(k)-a.k.startsWith(k))||a.n.localeCompare(b.n,"fr"));
+      h+=hit.map(g=>row(g)).join("");
+      if(!hit.length){ const like=grapeLike(t);
+        if(like.length) h+=`<div class="gp-h mono">Tu voulais dire ?</div>`+like.map(g=>row(g)).join("") }
+      if(!hit.some(g=>g.k===k)) h+=`<button type="button" class="gp-add" data-add="${esc(t)}"><span class="mono b">+ Ajouter</span> « ${esc(t)} »</button>`;
+      if(!hit.length&&!grapeLike(t).length) h=`<div class="gp-none">Aucun cépage connu ne correspond.</div>`+h;
+    }
+    list.innerHTML=h;
+  }
+  function paint(){
+    chips.innerHTML=sel().map(n=>`<button type="button" class="gp-chip${grapeKnown(n)?"":" unk"}" data-rm="${esc(n)}">${esc(n)}<b aria-label="Retirer">×</b></button>`).join("");
+    fix.innerHTML=sel().filter(n=>!grapeKnown(n)).map(n=>{ const l=grapeLike(n,1)[0]; return l?`<div class="gp-tip"><span>« ${esc(n)} » ressemble à <b>${esc(l.n)}</b>.</span><span class="row" style="gap:8px"><button type="button" class="chip on" data-swap="${esc(n)}" data-to="${esc(l.n)}">Remplacer</button><button type="button" class="chip" data-keep="${esc(n)}">Garder</button></span></div>`:"" }).join("");
+    q.placeholder=sel().length?"Ajouter un cépage…":"Choisir les cépages…";
+    if(!list.hidden) paintList();
+  }
+  const open=()=>{ if(list.hidden){ list.hidden=false; box.classList.add("open"); paintList() } };
+  const close=()=>{ list.hidden=true; box.classList.remove("open") };
+  q.addEventListener("focus",open); q.addEventListener("input",()=>{ open(); paintList(); list.scrollTop=0 });
+  $(".gp-tog",box).onclick=()=>list.hidden?(open(),q.focus()):close();
+  q.addEventListener("keydown",ev=>{ if(ev.key!=="Enter") return; ev.preventDefault(); const t=q.value.trim(); if(!t) return close();
+    const k=gkey(t), cat=grapeCatalog(), exact=cat.find(g=>g.k===k), hit=cat.filter(g=>g.k.includes(k));
+    const pick=exact||(hit.length===1?hit[0]:null);
+    if(pick){ if(!has(pick.n)) toggle(pick.n) } else if(!has(t)) save([...sel(),t]);
+    q.value=""; paintList() });
+  box.addEventListener("click",ev=>{
+    const it=ev.target.closest("[data-g]"); if(it){ toggle(it.dataset.g); if(q.value){ q.value=""; paintList() } return }
+    const ad=ev.target.closest("[data-add]"); if(ad){ const t=ad.dataset.add; if(!has(t)) save([...sel(),t]); q.value=""; paintList(); return }
+    const rm=ev.target.closest("[data-rm]"); if(rm){ save(sel().filter(x=>x!==rm.dataset.rm)); return }
+    const sw=ev.target.closest("[data-swap]"); if(sw){ const to=sw.dataset.to; save([...new Set(sel().map(x=>x===sw.dataset.swap?to:x))]); toast("Remplacé par "+to); return }
+    const kp=ev.target.closest("[data-keep]"); if(kp){ kp.closest(".gp-tip").remove(); return }
+  });
+  document.addEventListener("pointerdown",function out(ev){ if(!document.body.contains(box)) return document.removeEventListener("pointerdown",out,true); if(!box.contains(ev.target)) close() },true);
+  paint();
+}
 function setPath(obj,path,val){const ks=path.split(".");let o=obj;for(let i=0;i<ks.length-1;i++){o[ks[i]]=o[ks[i]]||{};o=o[ks[i]]}o[ks.at(-1)]=val}
 bind.edit=v=>{
   const e=draft;
-  $$("[data-k]",v).forEach(inp=>inp.addEventListener("input",()=>{let val=inp.value;if(inp.dataset.k==="grapes")val=val.split(",").map(x=>x.trim()).filter(Boolean);setPath(e,inp.dataset.k,val)}));
+  $$("[data-k]",v).forEach(inp=>inp.addEventListener("input",()=>{setPath(e,inp.dataset.k,inp.value)}));
+  bindGrapePicker(v,e);
   $("#cancel",v).onclick=()=>{draft=null;history.back()};
   bindSessBox(v,e);
   const ap=$('[data-k="appellation"]',v);
