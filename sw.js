@@ -1,6 +1,6 @@
 // In Vino - service worker : l'app fonctionne hors-ligne.
 // Les appels à api.github.com ne sont jamais mis en cache.
-const CACHE = "invino-v16";
+const CACHE = "invino-v17";
 const SHELL = [
   "./", "./index.html", "./manifest.webmanifest", "./vignobles.js",
   "./son-bouchon.mp3", "./son-service.mp3", "./son-tchin.mp3",

@@ -158,6 +158,8 @@ select.plain{background:none;border:0;font-family:var(--mono);font-size:10px;let
 .gp-chip.unk{border-style:dashed}
 .gp-tip{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin:8px 0;padding:10px 12px;border-left:2px solid var(--crimson);background:rgba(179,36,28,.08);font-size:16px}
 .gp-tip b{color:var(--bone);font-weight:500}
+body.gp-open #nav,body.gp-open .sticky-save{visibility:hidden;pointer-events:none}
+.gp{scroll-margin-top:calc(58px + var(--safe-t,0px))}
 .gp-bar{display:flex;align-items:center;gap:8px}.gp-bar .gp-q{flex:1}
 .gp-tog{background:none;border:1px solid var(--line);color:var(--bone2);width:34px;height:30px;cursor:pointer;transition:transform .25s}.gp.open .gp-tog{transform:rotate(180deg)}
 .gp-list{max-height:300px;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;margin-top:8px;border:1px solid var(--line);background:var(--ink2);animation:fade .2s}
@@ -886,6 +888,7 @@ $("#syncBtn").onclick=()=>sync(true);
 
 function render(soft=false){
   if(soft && route.name==="edit") return; // ne pas écraser un formulaire en cours
+  document.body.classList.remove("gp-open");
   const v=$("#view"); const n=route.name;
   if(soft && SOFT[n]){ SOFT[n](v); setSync(); return }
   const NAVOF={amicave:"confrerie",wine:"cave",compare:"cave",accords:"cave",soiree:"palmares",soirees:"palmares",passeport:"palmares",palais:"palmares",jeu:"palmares",bilan:"palmares",livre:"confrerie"};
@@ -1295,10 +1298,16 @@ function bindGrapePicker(v,e){
     q.placeholder=sel().length?"Ajouter un cépage…":"Choisir les cépages…";
     if(!list.hidden) paintList();
   }
-  const open=()=>{ if(list.hidden){ list.hidden=false; box.classList.add("open"); paintList() } };
-  const close=()=>{ list.hidden=true; box.classList.remove("open") };
-  q.addEventListener("focus",open); q.addEventListener("input",()=>{ open(); paintList(); list.scrollTop=0 });
-  $(".gp-tog",box).onclick=()=>list.hidden?(open(),q.focus()):close();
+  /* iPhone : le clavier ne réduit pas la page, il la recouvre. On remonte donc le champ en haut de l'écran
+     et on ajuste la hauteur de la liste à la place visible au-dessus du clavier. */
+  const fit=()=>{ if(list.hidden) return; const vv=window.visualViewport, bottom=vv?vv.offsetTop+vv.height:innerHeight;
+    list.style.maxHeight=Math.max(170,Math.min(340,bottom-list.getBoundingClientRect().top-10))+"px" };
+  const reveal=()=>{ fit(); [60,380,750].forEach(t=>setTimeout(()=>{ if(list.hidden) return; if(t<700) box.scrollIntoView({block:"start",behavior:"smooth"}); setTimeout(fit,260) },t)) };
+  if(window.visualViewport){ const vf=()=>{ if(!document.body.contains(box)) return visualViewport.removeEventListener("resize",vf); fit() }; visualViewport.addEventListener("resize",vf) }
+  const open=()=>{ if(list.hidden){ list.hidden=false; box.classList.add("open"); document.body.classList.add("gp-open"); paintList(); reveal() } };
+  const close=()=>{ list.hidden=true; box.classList.remove("open"); document.body.classList.remove("gp-open") };
+  q.addEventListener("focus",open); q.addEventListener("click",open); q.addEventListener("input",()=>{ open(); paintList(); list.scrollTop=0 });
+  $(".gp-tog",box).onclick=()=>{ if(list.hidden) open(); else { close(); q.blur() } };
   q.addEventListener("keydown",ev=>{ if(ev.key!=="Enter") return; ev.preventDefault(); const t=q.value.trim(); if(!t) return close();
     const k=gkey(t), cat=grapeCatalog(), exact=cat.find(g=>g.k===k), hit=cat.filter(g=>g.k.includes(k));
     const pick=exact||(hit.length===1?hit[0]:null);
@@ -1311,7 +1320,7 @@ function bindGrapePicker(v,e){
     const sw=ev.target.closest("[data-swap]"); if(sw){ const to=sw.dataset.to; save([...new Set(sel().map(x=>x===sw.dataset.swap?to:x))]); toast("Remplacé par "+to); return }
     const kp=ev.target.closest("[data-keep]"); if(kp){ kp.closest(".gp-tip").remove(); return }
   });
-  document.addEventListener("pointerdown",function out(ev){ if(!document.body.contains(box)) return document.removeEventListener("pointerdown",out,true); if(!box.contains(ev.target)) close() },true);
+  document.addEventListener("pointerdown",function out(ev){ if(!document.body.contains(box)){ document.body.classList.remove("gp-open"); return document.removeEventListener("pointerdown",out,true) } if(!box.contains(ev.target)) close() },true);
   paint();
 }
 function setPath(obj,path,val){const ks=path.split(".");let o=obj;for(let i=0;i<ks.length-1;i++){o[ks[i]]=o[ks[i]]||{};o=o[ks[i]]}o[ks.at(-1)]=val}
