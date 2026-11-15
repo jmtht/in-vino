@@ -447,6 +447,15 @@ details.preg .sw{width:12px;height:12px;border-radius:50%}details.preg .rn{font-
 .notif .nb{font-family:var(--serif);font-size:17px;line-height:1.2;margin-top:2px}
 @keyframes notifIn{from{opacity:0;transform:translate(-50%,-40px) scale(.95)}}
 
+/* ===== ESPACE PERSONNEL ===== */
+.guests{margin-top:22px;padding:14px;border:1px solid var(--line);background:var(--ink2)}
+.guests .chips{padding-top:8px}.guests .chip{cursor:pointer}
+.welcome{position:fixed;inset:0;z-index:90;background:radial-gradient(110% 80% at 50% 0%,#3a0a0e,var(--ink) 70%);display:flex;align-items:center;justify-content:center;overflow:auto;animation:fade .4s;transition:opacity .5s}
+.welcome.out{opacity:0}
+.wl-in{width:100%;max-width:480px;padding:40px 22px calc(30px + var(--safe-b))}
+.wl-in>.mono{text-align:center}
+.wl-in h1{margin:52px 0 0;text-align:center;font-family:var(--display);font-weight:400;font-size:min(22vw,110px);line-height:.85;text-transform:uppercase}
+.wl-in .script{text-align:center;font-size:48px;margin-top:-14px;transform:rotate(-5deg)}
 /* ===== ANIMATIONS ===== */
 .top{view-transition-name:topbar}.nav{view-transition-name:navbar}
 .poster{view-transition-name:hero}
@@ -537,7 +546,7 @@ input[list]::-webkit-calendar-picker-indicator{display:none!important}
     <button data-go="carte"><svg viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>Carte</button>
     <button data-go="new" class="add" aria-label="Ajouter un vin"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
     <button data-go="palmares"><svg viewBox="0 0 24 24"><path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/></svg>Palmarès</button>
-    <button data-go="confrerie"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 21c.5-4 3.3-6 7-6s6.5 2 7 6"/></svg>Confrérie</button>
+    <button data-go="confrerie"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 21c.5-4 3.3-6 7-6s6.5 2 7 6"/></svg>Profil</button>
   </nav>
 </div>
 
@@ -621,19 +630,31 @@ const DB = (()=>{
 })();
 
 /* ============ ÉTAT ============ */
-const COLS=["entries","members","games","guesses"];
+const COLS=["entries","members","games","guesses","soirees","attend"];
 let S = {entries:{}, members:{}, games:{}, guesses:{}};          // données
 let CFG = null;                            // config sync {owner,repo,branch,token}
 try{CFG=JSON.parse(localStorage.getItem("iv_cfg")||"null")}catch(e){}
 let ME = localStorage.getItem("iv_me")||"";
+function setME(n){ ME=(n||"").trim(); localStorage.setItem("iv_me",ME); VIS=null; if(ME) ensureMember(ME) }
 const UI = {filter:"all", q:"", sort:"date"};
 
-async function loadLocal(){const d=await DB.get("kv","state");if(d)S=d;for(const c of COLS)S[c]=S[c]||{}}
-async function saveLocal(){await DB.put("kv","state",S)}
+async function loadLocal(){const d=await DB.get("kv","state");if(d)S=d;for(const c of COLS)S[c]=S[c]||{};VIS=null}
+async function saveLocal(){VIS=null;await DB.put("kv","state",S)}
 const isHidden = e => !!(e.blind && !e.blind.revealed && (!player() || norm(e.blind.by)!==norm(player())));
 const allEntries = () => Object.values(S.entries).filter(e=>!e.deleted);
-const entries = () => allEntries().filter(e=>!isHidden(e));
-const members = () => Object.values(S.members).filter(m=>!m.deleted).sort((a,b)=>a.name.localeCompare(b.name));
+/* ---- Espace personnel : je vois mes vins, ceux que j'ai notés, et ceux des soirées où je suis invité ---- */
+let VIS=null;
+const attendees = id => Object.values(S.attend).filter(a=>!a.deleted&&a.soiree===id).map(a=>a.who);
+const attends = (id,who=ME) => !who || attendees(id).some(w=>normA(w)===normA(who));
+const mySoireesRaw = () => Object.values(S.soirees).filter(so=>!so.deleted&&attends(so.id));
+function addAttendRaw(id,who){ if(!who) return; const aid=id+":"+normA(who).replace(/ /g,"_"); const ex=S.attend[aid]; if(ex&&!ex.deleted) return; S.attend[aid]={id:aid,soiree:id,who,updatedAt:now(),deleted:false} }
+function removeAttendRaw(id,who){ const aid=id+":"+normA(who).replace(/ /g,"_"); if(S.attend[aid]) S.attend[aid]=Object.assign({},S.attend[aid],{deleted:true,updatedAt:now()}) }
+const entries = () => {
+  if(!VIS){ const me=ME, keys=new Set(mySoireesRaw().map(so=>so.key));
+    VIS=allEntries().filter(e=>!isHidden(e)&&( !me || (!e.by&&!e.session) || normA(e.by||"")===normA(me) || (e.scores||[]).some(x=>normA(x.who||"")===normA(me)&&x.score!=null&&x.score!=="")
+      || (e.blind&&normA(e.blind.by)===normA(player())) || (e.session&&keys.has((e.date||"")+"|"+e.session)) )) }
+  return VIS.slice() };
+const members = () => { const seen=new Set(); return Object.values(S.members).filter(m=>!m.deleted&&m.name).sort((a,b)=>a.name.localeCompare(b.name)).filter(m=>{const k=normA(m.name); if(seen.has(k)) return false; seen.add(k); return true}) };
 function avg(e){const s=(e.scores||[]).map(x=>parseFloat(x.score)).filter(x=>!isNaN(x));return s.length?s.reduce((a,b)=>a+b,0)/s.length:null}
 function catalogNo(){const list=Object.values(S.entries).sort((a,b)=>a.createdAt.localeCompare(b.createdAt));const m={};list.forEach((e,i)=>m[e.id]=i+1);return m}
 
@@ -725,6 +746,7 @@ async function sync(manual=false){
       if(i===4) throw new Error("conflit d'écriture, réessaie");
     }
     if(manual) toast("Cave synchronisée");
+    if(ensureSoireeObjects()){ await saveLocal(); scheduleSync() }
     try{ detectChanges(BEFORE,PREVCUR) }catch(e){}
     render(true);
   }catch(e){ syncErr=e.message; if(manual) toast("Synchro impossible : "+e.message) }
@@ -879,7 +901,7 @@ function viewCave(){
     <div class="hero ${INTRO?"intro":""}">${laurelSVG()}
       <div class="row-between mono"><span>Liber</span><span>Degustationum</span></div>
       <h1><span class="tall">In Vino</span><span class="script">veritas</span></h1>
-      <div class="sub mono"><span>Est. ${roman(new Date().getFullYear())}</span><span>Confrérie · ${members().length} palais</span></div>
+      <div class="sub mono"><span>Est. ${roman(new Date().getFullYear())}</span><span>La cave de ${esc(ME||"…")}</span></div>
       <div class="stats">
         <div><div class="v" data-count="${all.length}" data-pad="3">${pad(all.length)}</div><div class="k mono">Vins</div></div>
         <div data-gos style="cursor:pointer"><div class="v" data-count="${sessions.size}" data-pad="2">${pad(sessions.size,2)}</div><div class="k mono">Soirées ›</div></div>
@@ -1018,7 +1040,7 @@ function blankEntry(sess){
   const sm=A||(last&&last.session?{name:last.session,date:last.date,place:last.place}:null);
   return {id:uid(),by:player()||ME||"",createdAt:now(),updatedAt:now(),name:"",producer:"",vintage:"",color:"rouge",appellation:"",region:"",country:"France",grapes:[],abv:"",price:"",where:"",photo:null,
     date:sm?sm.date:today(),session:sm?sm.name:"",place:sm?(sm.place||""):"",eye:{},nose:{},palate:{},aromas:[],
-    scores:last?(last.scores||[]).map(s=>({who:s.who,score:null,comment:""})):(ME?[{who:ME,score:null,comment:""}]:[]),
+    scores:(sm&&last)?(last.scores||[]).map(s=>({who:s.who,score:null,comment:""})):(ME?[{who:ME,score:null,comment:""}]:[]),
     pairing:"",drinkBy:"",rebuy:"",verdict:""};
 }
 function datalist(id,vals){vals=[...new Set(vals.filter(Boolean))].sort((a,b)=>a.localeCompare(b));return `<datalist id="${id}">${vals.map(v=>`<option value="${esc(v)}">`).join("")}</datalist>`}
@@ -1158,7 +1180,7 @@ bind.edit=v=>{
     try{const blob=await compressImage(f);const pid=uid();await DB.put("photos",pid,{blob,uploaded:false});e.photo=pid;rerenderScores()}catch(err){toast("Photo illisible")}};
   $("#save",v).onclick=async()=>{
     if(!e.name.trim()&&!e.producer.trim()){toast("Donne au moins un nom ou un domaine");return}
-    e.scores=(e.scores||[]).filter(s=>s.who);
+    e.scores=(e.scores||[]).filter(s=>s.who&&(s.score!=null&&s.score!==""||s.comment||normA(s.who)===normA(ME)));
     const wasNew=!S.entries[e.id]; const id=e.id; await upsertEntry(JSON.parse(JSON.stringify(e))); draft=null;
     if(wasNew) pourFX(e.blind&&!e.blind.revealed?{secret:true,title:"En secret",sub:"Ta bouteille est cachée"}:{color:e.color,title:e.name||e.producer,sub:e.session?"Pour « "+e.session+" »":"Dans la cave"});
     if(!wasNew) buzz(25); if(e.blind&&!e.blind.revealed){if(!wasNew)toast("Bouteille cachée jusqu'à la révélation");go("jeu",e.blind.game,true)} else {if(!wasNew)toast("Enregistré"); go("wine",id,true)}
@@ -1181,13 +1203,33 @@ function getActive(){try{const a=JSON.parse(localStorage.getItem("iv_active")||"
 function setActive(a){a?localStorage.setItem("iv_active",JSON.stringify({name:a.name,date:a.date,place:a.place||""})):localStorage.removeItem("iv_active")}
 function sessionsAll(){
   const g={};
-  for(const e of entries()){ if(!e.session) continue; const k=sessionKey(e);
-    const x=g[k]=g[k]||{key:k,name:e.session,date:e.date,place:"",list:[]}; x.list.push(e); if(!x.place&&e.place) x.place=e.place }
-  const A=getActive(); if(A){const k=sessKey(A.name,A.date); if(!g[k]) g[k]={key:k,name:A.name,date:A.date,place:A.place||"",list:[]}; g[k].active=true}
+  for(const so of mySoireesRaw()) g[so.key]={key:so.key,id:so.id,name:so.name,date:so.date,place:so.place||"",owner:so.owner||"",guests:attendees(so.id),list:[]};
+  for(const e of entries()){ if(!e.session) continue; const x=g[sessionKey(e)]; if(x){ x.list.push(e); if(!x.place&&e.place) x.place=e.place } }
+  const A=getActive(); if(A){const k=sessKey(A.name,A.date); if(g[k]) g[k].active=true}
   return Object.values(g).sort((a,b)=>(b.active?1:0)-(a.active?1:0)||(b.date||"").localeCompare(a.date||"")||a.name.localeCompare(b.name));
+}
+const soByKey = k => Object.values(S.soirees).find(so=>!so.deleted&&so.key===k);
+async function createSoiree(x,friends=[]){
+  const k=sessKey(x.name,x.date); let so=soByKey(k);
+  if(!so){ const id="so_"+uid(); so={id,key:k,name:x.name,date:x.date,place:x.place||"",owner:ME,createdAt:now(),updatedAt:now()}; S.soirees[id]=so }
+  [ME,...friends].forEach(w=>addAttendRaw(so.id,w)); await saveLocal(); scheduleSync(); return so;
+}
+/* Migration douce : les anciennes soirées (déduites des vins) deviennent de vraies soirées, avec comme invités tous ceux qui y ont apporté ou noté un vin */
+function ensureSoireeObjects(){
+  let changed=false; const groups={};
+  for(const e of allEntries()){ if(e.session) (groups[sessionKey(e)]=groups[sessionKey(e)]||[]).push(e) }
+  for(const [k,list] of Object.entries(groups)){
+    let so=soByKey(k);
+    if(!so){ const id="so_"+hash(k).toString(36); so=S.soirees[id];
+      if(!so||so.key!==k){ const i=k.indexOf("|"); so={id,key:k,name:k.slice(i+1),date:k.slice(0,i),place:(list.find(e=>e.place)||{}).place||"",owner:list[0].by||"",createdAt:list.map(e=>e.createdAt).sort()[0]||now(),updatedAt:now()}; S.soirees[id]=so; changed=true }
+      else if(so.deleted){ so.deleted=false; so.updatedAt=now(); changed=true } }
+    if(!Object.values(S.attend).some(a=>a.soiree===so.id)){ const ppl=new Set(); list.forEach(e=>{ if(e.by)ppl.add(e.by); if(e.blind&&e.blind.by)ppl.add(e.blind.by); (e.scores||[]).forEach(x=>x.who&&ppl.add(x.who)) }); ppl.forEach(w=>addAttendRaw(so.id,w)); if(ppl.size) changed=true }
+  }
+  if(changed) VIS=null; return changed;
 }
 function groupSessions(){return sessionsAll().filter(x=>x.list.length).map(x=>[x.key,x.list])}
 async function assignSession(ids,x){
+  if(x&&!soByKey(sessKey(x.name,x.date))) await createSoiree(x);
   for(const id of ids){const e=S.entries[id];if(!e)continue;
     if(x){e.session=x.name;e.date=x.date||e.date;e.place=x.place||""}else{e.session="";e.place=""}
     e.updatedAt=now()}
@@ -1201,17 +1243,19 @@ function pickSession({cur="",allowNone=false,title="Rattacher à une soirée",cr
     const formH=`<div class="field"><label class="mono">Nom</label><input type="text" id="nsName" placeholder="Soirée Rhône chez Paul" autocomplete="off"></div>
       <div class="grid2"><div class="field"><label class="mono">Date</label><input type="date" id="nsDate" value="${today()}"></div>
         <div class="field"><label class="mono">Lieu</label><input type="text" id="nsPlace" list="dlNsPl" placeholder="Nantes" autocomplete="off">${datalist("dlNsPl",places)}</div></div>
+      ${friendsList().length?`<div class="mono" style="margin-top:12px">Inviter des amis</div><div class="chips wrapc" id="nsFr">${friendsList().map(f=>`<button type="button" class="chip" data-fr="${esc(f)}">${esc(f)}</button>`).join("")}</div>`:`<p class="note" style="font-size:15px">Tu pourras inviter tes amis depuis la page de la soirée.</p>`}
       <label class="ckline"><input type="checkbox" id="nsAct" checked> C'est la soirée en cours : les prochains vins y iront tout seuls</label>
       <div class="actions"><button type="button" class="btn ghost" data-x>Annuler</button><button type="button" class="btn red" data-create>Créer</button></div>`;
-    openSheet(createFirst?`<div class="mono">La confrérie se réunit</div><h3>Nouvelle soirée</h3>${formH}${ss.length?`<div class="rule mono">ou rouvrir une soirée</div>${listH}`:""}`
+    openSheet(createFirst?`<div class="mono">Ta prochaine soirée</div><h3>Nouvelle soirée</h3>${formH}${ss.length?`<div class="rule mono">ou rouvrir une soirée</div>${listH}`:""}`
       :`<div class="mono">${esc(title)}</div><h3>Soirées</h3>${listH}<div class="rule mono">Nouvelle soirée</div>${formH}
       ${allowNone?`<div class="actions" style="margin-top:8px"><button type="button" class="btn ghost" data-none>Aucune soirée</button></div>`:""}`,
     m=>{
       $$("[data-pk]",m).forEach(b=>b.onclick=()=>{const x=ss.find(y=>y.key===b.dataset.pk);fin({name:x.name,date:x.date,place:x.place})});
       const nb=$("[data-none]",m); if(nb) nb.onclick=()=>fin(null);
       const dt=$("#nsDate",m), ac=$("#nsAct",m); dt.onchange=()=>{ac.checked=dt.value>=today()};
-      $("[data-create]",m).onclick=()=>{const name=$("#nsName",m).value.trim();if(!name){toast("Donne un nom à la soirée");$("#nsName",m).focus();return}
-        const x={name,date:dt.value||today(),place:$("#nsPlace",m).value.trim()}; if(ac.checked) setActive(x); fin(x)};
+      $$("[data-fr]",m).forEach(b=>b.onclick=()=>b.classList.toggle("on"));
+      $("[data-create]",m).onclick=async()=>{const name=$("#nsName",m).value.trim();if(!name){toast("Donne un nom à la soirée");$("#nsName",m).focus();return}
+        const x={name,date:dt.value||today(),place:$("#nsPlace",m).value.trim()}; await createSoiree(x,$$("[data-fr].on",m).map(b=>b.dataset.fr)); if(ac.checked) setActive(x); fin(x)};
     },()=>{if(!done){done=true;res(undefined)}});
   });
 }
@@ -1246,11 +1290,34 @@ function editSession(x){
   m=>{
     $("[data-save]",m).onclick=async()=>{const n={name:$("#esName",m).value.trim(),date:$("#esDate",m).value||x.date,place:$("#esPlace",m).value.trim()};
       if(!n.name){toast("Il faut un nom");return}
-      await closeModal(); await assignSession(x.list.map(e=>e.id),n); if(isAct) setActive(n);
+      await closeModal(); const so=S.soirees[x.id]; if(so){Object.assign(so,{name:n.name,date:n.date,place:n.place,key:sessKey(n.name,n.date),updatedAt:now()})}
+      await assignSession(x.list.map(e=>e.id),n); if(isAct) setActive(n);
       toast("Soirée mise à jour"); go("soiree",sessKey(n.name,n.date),true)};
     $("[data-dissolve]",m).onclick=async()=>{await closeModal();
       confirmSheet("Dissoudre la soirée ?",`Les ${x.list.length} vins restent dans la cave, simplement sans soirée.`,"Dissoudre",async()=>{
-        await assignSession(x.list.map(e=>e.id),null); if(isAct) setActive(null); toast("Soirée dissoute"); go("soirees",null,true)})};
+        await assignSession(x.list.map(e=>e.id),null); const so=S.soirees[x.id]; if(so){so.deleted=true;so.updatedAt=now();await saveLocal();scheduleSync()} if(isAct) setActive(null); toast("Soirée dissoute"); go("soirees",null,true)})};
+  });
+}
+const friendsList = () => members().map(m=>m.name).filter(n=>normA(n)!==normA(ME));
+function guestsSheet(X){
+  const g=new Set((X.guests||[]).map(normA)), fr=friendsList();
+  openSheet(`<div class="mono">${esc(X.name)}</div><h3>Les invités</h3>
+    ${fr.length?`<p class="note" style="margin-top:0">Coche les amis qui viennent : ils verront la soirée et ses vins dans leur espace.</p>
+      <div class="cklist" style="max-height:34vh">${fr.map(f=>`<label class="ckrow"><input type="checkbox" value="${esc(f)}" ${g.has(normA(f))?"checked":""}><span class="box"></span><div><div class="t">${esc(f)}</div></div></label>`).join("")}</div>
+      <div class="actions"><button type="button" class="btn red" data-gsave>Enregistrer</button></div>`:`<p class="note" style="margin-top:0">Tu n'as pas encore d'amis dans ton espace. Envoie-leur le lien ci-dessous.</p>`}
+    <div class="rule mono">ou</div>
+    <div class="actions" style="margin-top:0"><button type="button" class="btn" data-glink>Envoyer un lien d'invitation</button></div>
+    <p class="note" style="font-size:14px">Le lien fait entrer ton ami directement dans cette soirée.</p>
+    ${normA(X.owner||"")!==normA(ME)?`<div class="actions"><button type="button" class="btn ghost small" data-gleave>Quitter cette soirée</button></div>`:""}`,
+  m=>{
+    const gs=$("[data-gsave]",m); if(gs) gs.onclick=async()=>{ const on=new Set($$(".ckrow input:checked",m).map(c=>c.value));
+      fr.forEach(f=>{ if(on.has(f)) addAttendRaw(X.id,f); else if(g.has(normA(f))) removeAttendRaw(X.id,f) });
+      await saveLocal(); scheduleSync(); await closeModal(); toast("Invités mis à jour"); render(true) };
+    $("[data-glink]",m).onclick=async()=>{ if(!CFG){ await closeModal(); return confirmSheet("Il faut un espace de partage","Pour qu'un ami rejoigne ta soirée, ton espace doit être relié au partage (Profil > Le partage). Une seule personne du groupe le crée.","Y aller",()=>go("confrerie")) }
+      const url=inviteLink(X.id);
+      if(navigator.share){try{await navigator.share({title:"In Vino",text:`Rejoins ma soirée « ${X.name} » sur In Vino :`,url});return}catch(e){if(e.name==="AbortError")return}}
+      try{await navigator.clipboard.writeText(url);toast("Lien copié")}catch(e){promptSheet("Lien d'invitation",url,()=>{})} };
+    const lv=$("[data-gleave]",m); if(lv) lv.onclick=async()=>{ removeAttendRaw(X.id,ME); if(getActive()&&sessKey(getActive().name,getActive().date)===X.key) setActive(null); await saveLocal(); scheduleSync(); await closeModal(); toast("Tu as quitté la soirée"); go("soirees",null,true) };
   });
 }
 async function newSessionFlow(){const x=await pickSession({createFirst:true}); if(x) go("soiree",sessKey(x.name,x.date))}
@@ -1283,6 +1350,8 @@ function viewSoiree(k){
     <div class="mono" style="margin-top:40px;text-align:center">${X.active?'<span class="badge" style="margin:0 8px 0 0">En cours</span>':""}${esc(fmtDate(d))}${X.place?" · "+esc(X.place):""}</div>
     <h1 style="font-family:var(--display);font-weight:400;font-size:min(14vw,68px);line-height:.88;text-transform:uppercase;margin:18px 0 0;text-align:center">${esc(name||"Soirée")}</h1>
     <div class="script" style="text-align:center;font-size:40px;margin-top:-10px;transform:rotate(-5deg)">${roman(d.slice(0,4))||"convivium"}</div>
+    <div class="guests"><div class="row-between"><span class="mono">Les invités · ${(X.guests||[]).length}</span><button class="linkbtn" id="sInv">+ Inviter</button></div>
+      <div class="chips wrapc">${(X.guests||[]).map(g=>`<span class="chip ${normA(g)===normA(ME)?"on":""}" data-gpal="${esc(g)}">${esc(g)}${normA(g)===normA(X.owner||"")?" ♛":""}</span>`).join("")}</div></div>
     <button class="game-cta" id="sGame"><span class="gc-glass">${glassSVG("rouge")}</span><span><span class="mono b">${gameOfSess(k)?"Reprendre le jeu":"Lancer le jeu"}</span><span class="gc-t">À l'aveugle</span><span class="note" style="font-size:15px">Chacun apporte sa bouteille, les autres devinent.</span></span></button>
     <div class="actions" style="margin-top:18px"><button class="btn red" id="sAdd">+ Inscrire un vin</button><button class="btn" id="sLink">Choisir des vins</button></div>
     <div class="row-between" style="margin-top:14px"><button class="linkbtn" id="sEdit">Modifier</button>${X.list.length?'<button class="linkbtn" id="sPoster">Affiche</button>':""}<button class="linkbtn" id="sAct">${X.active?"Terminer la soirée en cours":"C'est la soirée en cours"}</button></div>
@@ -1298,6 +1367,8 @@ bind.soiree=v=>{
   $("#sLink",v).onclick=()=>manageWines(X);
   $("#sEdit",v).onclick=()=>editSession(X);
   $("#sGame",v).onclick=()=>openGameForSession(X);
+  $("#sInv",v).onclick=()=>guestsSheet(X);
+  $$("[data-gpal]",v).forEach(b=>b.onclick=()=>go("palais",b.dataset.gpal));
   const sp=$("#sPoster",v); if(sp) sp.onclick=()=>shareImage(posterSoiree(X),"in-vino-soiree.png");
   $("#sAct",v).onclick=()=>{if(X.active){setActive(null);toast("Soirée terminée")}else{setActive(X);toast("Les prochains vins iront dans cette soirée")}render(true)};
 };
@@ -1334,30 +1405,31 @@ bind.palmares=v=>{bindTabs(v);bindCards(v);$$("[data-palais]",v).forEach(b=>b.on
   $("[data-bilan]",v).onclick=()=>{const y=new Date().getFullYear();showBilan(entries().some(e=>(e.date||"").startsWith(String(y)))?y:y-1)}};
 
 /* ============ VUE : CONFRÉRIE / RÉGLAGES ============ */
-function inviteLink(){const p=btoa(unescape(encodeURIComponent(JSON.stringify({o:CFG.owner,r:CFG.repo,b:CFG.branch||"main",t:CFG.token})))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");return location.origin+location.pathname+"#invite="+p}
+function inviteLink(soId){const p=btoa(unescape(encodeURIComponent(JSON.stringify(Object.assign({o:CFG.owner,r:CFG.repo,b:CFG.branch||"main",t:CFG.token},soId?{s:soId}:{}))))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");return location.origin+location.pathname+"#invite="+p}
 function viewConfrerie(){
   const ms=members(); const allNames=[...new Set([...ms.map(m=>m.name)])];
   return `<section class="wrap form">
-    <h1 style="font-family:var(--display);font-weight:400;font-size:min(18vw,88px);line-height:.85;text-transform:uppercase;margin:56px 0 0;text-align:center"><span class="tall">Confrérie</span></h1>
-    <div class="script" style="text-align:center;font-size:46px;margin-top:-18px;transform:rotate(-5deg)">amici</div>
+    <h1 style="font-family:var(--display);font-weight:400;font-size:min(18vw,88px);line-height:.85;text-transform:uppercase;margin:56px 0 0;text-align:center"><span class="tall">Mon espace</span></h1>
+    <div class="script" style="text-align:center;font-size:46px;margin-top:-18px;transform:rotate(-5deg)">${esc(ME||"amici")}</div>
 
-    <div class="section"><div class="sec-h"><span class="num">I</span><h4>Qui es-tu ?</h4></div>
-      <p class="note" style="margin-top:0">Ton nom est pré-rempli comme dégustateur sur ce téléphone.</p>
+    <div class="section"><div class="sec-h"><span class="num">I</span><h4>Mon nom</h4></div>
+      <p class="note" style="margin-top:0">C'est sous ce nom que tes amis te voient dans les soirées.</p>
       <div class="field"><input type="text" id="meIn" value="${esc(ME)}" placeholder="Ton prénom" list="dlMe" autocomplete="off">${datalist("dlMe",allNames)}</div>
     </div>
 
-    <div class="section"><div class="sec-h"><span class="num">II</span><h4>Les palais</h4></div>
-      ${ms.length?ms.map(m=>`<div class="member"><span class="n tap" data-palais="${esc(m.name)}">${esc(m.name)} ›</span><span class="mono">${entries().filter(e=>(e.scores||[]).some(s=>norm(s.who)===norm(m.name))).length} vins <button class="linkbtn" data-rmm="${m.id}" style="margin-left:10px">×</button></span></div>`).join(""):`<p class="note">Personne encore. Les dégustateurs s'ajoutent tout seuls quand ils notent un vin.</p>`}
-      <div class="actions"><button class="btn ghost small" id="addMember">+ Ajouter un palais</button></div>
+    <div class="section"><div class="sec-h"><span class="num">II</span><h4>Mes amis</h4></div>
+      <p class="note" style="margin-top:0">Les amis de tes soirées. Touche un prénom pour voir son palais.</p>
+      ${ms.filter(m=>normA(m.name)!==normA(ME)).length?ms.filter(m=>normA(m.name)!==normA(ME)).map(m=>`<div class="member"><span class="n tap" data-palais="${esc(m.name)}">${esc(m.name)} ›</span><span class="mono">${entries().filter(e=>(e.scores||[]).some(s=>norm(s.who)===norm(m.name))).length} vins <button class="linkbtn" data-rmm="${m.id}" style="margin-left:10px">×</button></span></div>`).join(""):`<p class="note">Personne encore. Les dégustateurs s'ajoutent tout seuls quand ils notent un vin.</p>`}
+      <div class="actions"><button class="btn ghost small" id="addMember">+ Ajouter un ami</button></div>
     </div>
 
-    <div class="section"><div class="sec-h"><span class="num">III</span><h4>La cave partagée</h4></div>
+    <div class="section"><div class="sec-h"><span class="num">III</span><h4>Le partage</h4></div>
       ${CFG?`<div class="card-plain"><div class="mono">Dépôt</div><div style="font-size:20px">${esc(CFG.owner)}/${esc(CFG.repo)}</div>
           <div class="mono" style="margin-top:8px">${syncErr?`<span style="color:var(--ember)">Erreur : ${esc(syncErr)}</span>`:"Dernière synchro : "+ago(lastSync)}</div></div>
         <div class="actions"><button class="btn fill" id="syncNow">Synchroniser</button><button class="btn" id="invite">Inviter un ami</button></div>
-        <p class="note">Le lien d'invitation contient la clé d'accès à la cave : envoie-le uniquement dans le groupe des amis.</p>
+        <p class="note">Le lien d'invitation contient la clé d'accès au partage : envoie-le uniquement à tes amis. Chacun ne voit que ses vins et les soirées où il est invité.</p>
         <div class="actions"><button class="btn ghost small" id="unlink">Déconnecter ce téléphone</button></div>`
-      :`<p class="note" style="margin-top:0">Pour l'instant la cave vit seulement sur ce téléphone. Pour la partager avec la confrérie et la garder à vie, relie-la à un dépôt GitHub privé (gratuit). Si un ami t'a envoyé un lien d'invitation, ouvre-le simplement.</p>
+      :`<p class="note" style="margin-top:0">Pour l'instant ton espace vit seulement sur ce téléphone. Pour inviter tes amis à tes soirées et tout garder à vie, il faut un espace de partage : un dépôt GitHub privé et gratuit. Une seule personne du groupe le crée, les autres rejoignent avec un lien.</p>
         <div class="field"><label class="mono">Propriétaire GitHub</label><input type="text" id="cfOwner" placeholder="ton-pseudo" autocapitalize="off" autocomplete="off"></div>
         <div class="field"><label class="mono">Nom du dépôt de données</label><input type="text" id="cfRepo" placeholder="in-vino-data" autocapitalize="off" autocomplete="off"></div>
         <div class="field"><label class="mono">Jeton d'accès (fine-grained)</label><input type="text" id="cfToken" placeholder="github_pat_…" autocapitalize="off" autocomplete="off" spellcheck="false"></div>
@@ -1398,9 +1470,9 @@ bind.confrerie=v=>{
   $$("[data-palais]",v).forEach(b=>b.onclick=()=>go("palais",b.dataset.palais));
   $("#bookBtn",v).onclick=()=>go("livre");
   const ib=$("#installBtn",v); if(ib) ib.onclick=async()=>{const ev=INSTALL_EVT;INSTALL_EVT=null;ev.prompt();try{await ev.userChoice}catch(e){}render(true)};
-  $("#meIn",v).onchange=e=>{ME=e.target.value.trim();localStorage.setItem("iv_me",ME);if(ME){ensureMember(ME);saveLocal().then(scheduleSync)}toast("Enchanté, "+(ME||"inconnu"));render(true)};
+  $("#meIn",v).onchange=e=>{const n=e.target.value.trim(); if(!n) return; setME(n); saveLocal().then(scheduleSync); toast("Enchanté, "+ME); render(true)};
   $("#addMember",v).onclick=()=>promptSheet("Nouveau palais","Prénom",async n=>{if(!n.trim())return;ensureMember(n);await saveLocal();scheduleSync();render(true)});
-  $$("[data-rmm]",v).forEach(b=>b.onclick=()=>confirmSheet("Retirer ce palais ?","Ses notes déjà données restent dans la cave.","Retirer",async()=>{const m=S.members[b.dataset.rmm];m.deleted=true;m.updatedAt=now();await saveLocal();scheduleSync();render(true)}));
+  $$("[data-rmm]",v).forEach(b=>b.onclick=()=>confirmSheet("Retirer cet ami ?","Ses notes déjà données restent dans tes soirées.","Retirer",async()=>{const m=S.members[b.dataset.rmm];m.deleted=true;m.updatedAt=now();await saveLocal();scheduleSync();render(true)}));
   const L=$("#link",v);
   if(L) L.onclick=async()=>{
     const cfg={owner:$("#cfOwner",v).value.trim(),repo:$("#cfRepo",v).value.trim(),branch:"main",token:$("#cfToken",v).value.trim()};
@@ -2580,11 +2652,13 @@ async function notifyUser(title,body,go2,tag){
 function detectChanges(before,prevCur){
   if(!before.size) return; // première synchro d'un téléphone : on ne notifie pas tout l'historique
   const me=player(), fresh=Date.now()-24*3600e3;
-  const added=Object.values(S.entries).filter(e=>!before.has(e.id)&&!e.deleted&&e.session&&new Date(e.createdAt).getTime()>fresh&&!(e.by&&same(e.by,me))&&!(e.blind&&same(e.blind.by,me)));
+  const vis=new Set(entries().map(e=>e.id));
+  const added=Object.values(S.entries).filter(e=>!before.has(e.id)&&vis.has(e.id)&&!e.deleted&&e.session&&new Date(e.createdAt).getTime()>fresh&&!(e.by&&same(e.by,me))&&!(e.blind&&same(e.blind.by,me)));
   if(added.length===1){ const e=added[0], who=(e.blind&&e.blind.by)||e.by||"Quelqu'un";
     notifyUser(`${who} a ajouté une bouteille`, e.blind&&!e.blind.revealed?`Une bouteille mystère pour « ${e.session} »`:`${e.name||e.producer} · ${e.session}`, ()=>go("soiree",sessionKey(e)), "add-"+e.id) }
   else if(added.length>1){ const s=added[0].session; notifyUser(`${added.length} nouvelles bouteilles`,`Pour « ${s} »`,()=>go("soiree",sessionKey(added[0])),"add-many") }
-  for(const g of Object.values(S.games)){ if(g.deleted||!g.cur||g.cur===prevCur[g.id]||LOCAL_SERVES.has(g.cur)) continue;
+  const myK=new Set(mySoireesRaw().map(so=>so.key));
+  for(const g of Object.values(S.games)){ if(g.deleted||!g.cur||g.cur===prevCur[g.id]||LOCAL_SERVES.has(g.cur)||!myK.has(g.sess)) continue;
     const e=S.entries[g.cur]; if(!e||!e.blind||e.blind.revealed) continue; LOCAL_SERVES.add(g.cur);
     if(route.name==="jeu"&&route.id===g.id&&document.visibilityState==="visible") pourFX({secret:true,title:`Bouteille de ${e.blind.by}`,sub:"On sert"});
     else notifyUser("On sert !",`La bouteille de ${e.blind.by} est dans les verres`,()=>go("jeu",g.id),"serve-"+g.id) }
@@ -2601,14 +2675,37 @@ async function handleInvite(src){
   const fromHash=typeof src!=="string";
   const m=(fromHash?location.hash:src).match(/invite=([\w-]+)/); if(!m){ if(!fromHash) toast("Ce n'est pas un lien d'invitation"); return }
   if(fromHash) history.replaceState({name:route.name,id:route.id},"",location.pathname);
-  let cfg; try{const s=m[1].replace(/-/g,"+").replace(/_/g,"/");const j=JSON.parse(decodeURIComponent(escape(atob(s))));cfg={owner:j.o,repo:j.r,branch:j.b||"main",token:j.t}}catch(e){toast("Lien d'invitation invalide");return}
+  let cfg, soId=null; try{const s=m[1].replace(/-/g,"+").replace(/_/g,"/");const j=JSON.parse(decodeURIComponent(escape(atob(s))));cfg={owner:j.o,repo:j.r,branch:j.b||"main",token:j.t};soId=j.s||null}catch(e){toast("Lien d'invitation invalide");return}
+  const wl=$(".welcome"); if(wl) wl.remove();
   const md=document.createElement("div");md.className="modal";
-  md.innerHTML=`<div class="sheet form"><div class="mono">Invitation</div><h3>Rejoindre la confrérie</h3><p class="note">Cette cave est partagée par vos amis. Dis-nous qui tu es pour pré-remplir tes notes.</p>
+  md.innerHTML=`<div class="sheet form"><div class="mono">Invitation</div><h3>${soId?"Rejoindre la soirée":"Rejoindre tes amis"}</h3><p class="note">${soId?"Un ami t'invite à sa soirée de dégustation.":"Un ami t'invite à partager vos soirées de dégustation."} Dis-nous qui tu es.</p>
     <div class="field"><input type="text" id="invMe" placeholder="Ton prénom" value="${esc(ME)}" autocomplete="off"></div>
     <div class="actions"><button class="btn ghost" data-x>Plus tard</button><button class="btn red" data-ok>Entrer</button></div></div>`;
   md.onclick=ev=>{if(ev.target.dataset.x!==undefined)closeModal()};
-  $("[data-ok]",md).onclick=async()=>{ME=$("#invMe",md).value.trim();localStorage.setItem("iv_me",ME);await closeModal();await linkRepo(cfg);if(ME){ensureMember(ME);await saveLocal();scheduleSync()}};
+  $("[data-ok]",md).onclick=async()=>{const n=$("#invMe",md).value.trim(); if(!n) return toast("Tape ton prénom"); setME(n); await closeModal();
+    const sameNet=CFG&&CFG.owner===cfg.owner&&CFG.repo===cfg.repo; if(sameNet) await sync(); else await linkRepo(cfg);
+    ensureMember(ME); if(soId){ addAttendRaw(soId,ME) } await saveLocal(); scheduleSync();
+    const so=soId&&S.soirees[soId]; if(so){ toast("Bienvenue à « "+so.name+" »"); go("soiree",so.key) } else render(true)};
   openModal(md);
+}
+
+/* ============ BIENVENUE : création de l'espace personnel ============ */
+function welcome(){
+  if(ME||$(".welcome")) return;
+  const w=document.createElement("div"); w.className="welcome";
+  w.innerHTML=`<div class="wl-in form">
+    <div class="mono b">Liber Degustationum</div>
+    <h1><span class="tall">In Vino</span></h1><div class="script">bienvenue</div>
+    <p class="lead" style="text-align:center">Ton carnet de dégustation personnel. Crée tes soirées et invites-y tes amis.</p>
+    <div class="field"><label class="mono">Ton prénom</label><input type="text" id="wlName" placeholder="Jean-Max" autocomplete="given-name"></div>
+    <div class="actions"><button class="btn red" id="wlGo">Créer mon espace</button></div>
+    <div class="rule mono">ou</div>
+    <div class="field"><label class="mono">J'ai reçu un lien d'invitation</label><input type="text" id="wlInv" placeholder="Colle le lien ici" autocapitalize="off" autocomplete="off" spellcheck="false"></div>
+    <div class="actions"><button class="btn" id="wlJoin">Rejoindre</button></div></div>`;
+  document.body.appendChild(w);
+  $("#wlGo",w).onclick=async()=>{const n=$("#wlName",w).value.trim(); if(!n) return toast("Tape ton prénom"); setME(n); await saveLocal(); scheduleSync(); w.classList.add("out"); setTimeout(()=>w.remove(),500); render(); toast("Bienvenue, "+n+" !")};
+  $("#wlName",w).onkeydown=e=>{if(e.key==="Enter")$("#wlGo",w).click()};
+  $("#wlJoin",w).onclick=()=>handleInvite($("#wlInv",w).value.trim());
 }
 
 /* ============ DÉMARRAGE ============ */
@@ -2616,10 +2713,12 @@ async function handleInvite(src){
   preloadSnd();
   splashOpen();
   await loadLocal();
+  if(ensureSoireeObjects()){ await saveLocal(); setTimeout(scheduleSync,2000) }
   history.replaceState({name:"cave",id:null},"");
   render();
   if(location.hash==="#nouveau"){history.replaceState({name:"cave",id:null},"",location.pathname);go("edit")}
   else if(location.hash==="#carte"){history.replaceState({name:"cave",id:null},"",location.pathname);go("carte")}
+  if(!/invite=/.test(location.hash)) welcome();
   handleInvite();
   window.addEventListener("hashchange",handleInvite);
   if(CFG) sync();
