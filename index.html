@@ -659,14 +659,14 @@ const inMyCave = id => entries().some(e=>e.id===id);
 function friendCave(name){
   const n=normA(name), priv=isPrivateCave(name), mine=new Set(entries().map(e=>e.id));
   return allEntries().filter(e=>{ if(e.blind&&!e.blind.revealed) return false;
-    const his=normA(e.by||"")===n || (e.scores||[]).some(x=>normA(x.who||"")===n&&x.score!=null&&x.score!=="") || isSaved(e.id,name);
+    const his=normA(e.by||"")===n || (e.scores||[]).some(x=>normA(x.who||"")===n&&((x.score!=null&&x.score!=="")||!e.by)) || isSaved(e.id,name);
     return his && (!priv || mine.has(e.id)) });
 }
 function addAttendRaw(id,who){ if(!who) return; const aid=id+":"+normA(who).replace(/ /g,"_"); const ex=S.attend[aid]; if(ex&&!ex.deleted) return; S.attend[aid]={id:aid,soiree:id,who,updatedAt:now(),deleted:false} }
 function removeAttendRaw(id,who){ const aid=id+":"+normA(who).replace(/ /g,"_"); if(S.attend[aid]) S.attend[aid]=Object.assign({},S.attend[aid],{deleted:true,updatedAt:now()}) }
 const entries = () => {
   if(!VIS){ const me=ME, keys=new Set(mySoireesRaw().map(so=>so.key)), kept=new Set(Object.values(S.saves).filter(x=>!x.deleted&&normA(x.who)===normA(me||"")).map(x=>x.wine));
-    VIS=allEntries().filter(e=>!isHidden(e)&&( !me || (!e.by&&!e.session) || normA(e.by||"")===normA(me) || (e.scores||[]).some(x=>normA(x.who||"")===normA(me)&&x.score!=null&&x.score!=="")
+    VIS=allEntries().filter(e=>!isHidden(e)&&( !me || !e.by || normA(e.by||"")===normA(me) || (e.scores||[]).some(x=>normA(x.who||"")===normA(me)&&x.score!=null&&x.score!=="")
       || (e.blind&&normA(e.blind.by)===normA(player())) || (e.session&&keys.has((e.date||"")+"|"+e.session)) || kept.has(e.id) )) }
   return VIS.slice() };
 const members = () => { const seen=new Set(); return Object.values(S.members).filter(m=>!m.deleted&&m.name).sort((a,b)=>a.name.localeCompare(b.name)).filter(m=>{const k=normA(m.name); if(seen.has(k)) return false; seen.add(k); return true}) };
@@ -756,7 +756,8 @@ async function sync(manual=false){
       const sig=o=>COLS.map(c=>Object.keys(o[c]).sort().map(k=>k+"@"+(o[c][k].updatedAt||"")).join(",")).join("|");
       const changed = !data || sig(merged)!==sig(remote);
       await saveLocal();
-      if(!changed || await GH.putData(toFile(),sha)){ lastSync=now(); localStorage.setItem("iv_last",lastSync); localStorage.setItem("iv_dirty","0"); break }
+      const extra={}; if(data) for(const k of Object.keys(data)) if(!COLS.includes(k)&&!["app","version","savedAt"].includes(k)) extra[k]=data[k];
+      if(!changed || await GH.putData(Object.assign(extra,toFile()),sha)){ lastSync=now(); localStorage.setItem("iv_last",lastSync); localStorage.setItem("iv_dirty","0"); break }
       await new Promise(r=>setTimeout(r,600+Math.random()*800));
       if(i===4) throw new Error("conflit d'écriture, réessaie");
     }
@@ -1048,6 +1049,34 @@ bind.wine=v=>{
   b.onclick=()=>go("edit",route.id);
   const db=$("#delBtn",v); if(db) db.onclick=()=>confirmSheet("Effacer ce vin ?","Il disparaîtra de la cave de toute la confrérie.","Effacer",async()=>{await deleteEntry(route.id);toast("Vin effacé");history.back()});
 };
+/* ---- Réparer les prénoms : « Tom » et « Thomas » sont la même personne ---- */
+function allNames(){ const s=new Map(); const add=n=>{ if(n&&n.trim()&&!s.has(normA(n))) s.set(normA(n),n.trim()) };
+  members().forEach(m=>add(m.name)); allEntries().forEach(e=>{ add(e.by); if(e.blind) add(e.blind.by); (e.scores||[]).forEach(x=>add(x.who)) });
+  Object.values(S.attend).forEach(a=>!a.deleted&&add(a.who)); return [...s.values()].sort((a,b)=>a.localeCompare(b)) }
+async function mergeNames(from,to){
+  const f=normA(from), t=to.trim(), T=now(); let n=0; const is=x=>normA(x||"")===f;
+  for(const e of Object.values(S.entries)){ let ch=false;
+    if(is(e.by)){ e.by=t; ch=true } if(e.blind&&is(e.blind.by)){ e.blind.by=t; ch=true }
+    if((e.scores||[]).some(x=>is(x.who))){ const keep=(e.scores||[]).filter(x=>!is(x.who)), mine=(e.scores||[]).filter(x=>is(x.who));
+      const has=keep.find(x=>normA(x.who||"")===normA(t)); e.scores=has?keep:keep.concat(mine.map(x=>Object.assign({},x,{who:t}))); ch=true }
+    if(ch){ e.updatedAt=T; n++ } }
+  for(const a of Object.values(S.attend)) if(!a.deleted&&is(a.who)){ removeAttendRaw(a.soiree,a.who); addAttendRaw(a.soiree,t) }
+  for(const x of Object.values(S.saves)) if(!x.deleted&&is(x.who)){ S.saves[x.id]=Object.assign({},x,{deleted:true,updatedAt:T}); const id=saveId(x.wine,t); S.saves[id]={id,wine:x.wine,who:t,deleted:false,updatedAt:T} }
+  for(const g of Object.values(S.guesses)) if(!g.deleted&&is(g.who)){ S.guesses[g.id]=Object.assign({},g,{deleted:true,updatedAt:T}); const id=guessId(g.wine,t); if(!S.guesses[id]||S.guesses[id].deleted) S.guesses[id]=Object.assign({},g,{id,who:t,deleted:false,updatedAt:T}) }
+  for(const m of Object.values(S.members)) if(!m.deleted&&is(m.name)){ m.deleted=true; m.updatedAt=T }
+  ensureMember(t); if(normA(ME)===f) setME(t);
+  await saveLocal(); scheduleSync(); return n;
+}
+function mergeSheet(){
+  const names=allNames();
+  openSheet(`<div class="mono">Réparer les prénoms</div><h3>Fusionner</h3>
+    <p class="note" style="margin-top:0">Si un ami apparaît sous deux prénoms (par exemple après un changement de téléphone), réunis-les : tous ses vins, notes et soirées passent sous le bon prénom.</p>
+    <div class="field"><label class="mono">Ancien prénom</label><select id="mgFrom">${names.map(n=>`<option>${esc(n)}</option>`).join("")}</select></div>
+    <div class="field"><label class="mono">Devient</label><select id="mgTo">${names.map(n=>`<option ${normA(n)===normA(ME)?"selected":""}>${esc(n)}</option>`).join("")}</select></div>
+    <div class="actions"><button type="button" class="btn ghost" data-x>Annuler</button><button type="button" class="btn red" data-mg>Fusionner</button></div>`,
+  m=>{ $("[data-mg]",m).onclick=async()=>{ const a=$("#mgFrom",m).value, b=$("#mgTo",m).value; if(normA(a)===normA(b)) return toast("Choisis deux prénoms différents");
+    await closeModal(); confirmSheet(`« ${a} » devient « ${b} » ?`,"Tous les vins, notes, soirées et verdicts de "+a+" passeront sous "+b+", chez tout le monde.","Fusionner",async()=>{ const n=await mergeNames(a,b); toast(`${n} vin${n>1?"s":""} mis à jour`); render(true) }) } });
+}
 /* Donner sa note au vin d'un ami (le vin rejoint alors ma cave) */
 function myNoteSheet(e){
   const cur=(e.scores||[]).find(x=>normA(x.who||"")===normA(ME)); let v=cur&&cur.score!=null&&cur.score!==""?parseFloat(cur.score):null;
@@ -1075,7 +1104,7 @@ function blankEntry(sess){
   const A=sess||getActive();
   const last=entries().filter(e=>A?e.session===A.name&&e.date===A.date:e.date===today()).sort((a,b)=>b.createdAt.localeCompare(a.createdAt))[0];
   const sm=A||(last&&last.session?{name:last.session,date:last.date,place:last.place}:null);
-  return {id:uid(),by:player()||ME||"",createdAt:now(),updatedAt:now(),name:"",producer:"",vintage:"",color:"rouge",appellation:"",region:"",country:"France",grapes:[],abv:"",price:"",where:"",photo:null,
+  return {id:uid(),by:ME||player()||"",createdAt:now(),updatedAt:now(),name:"",producer:"",vintage:"",color:"rouge",appellation:"",region:"",country:"France",grapes:[],abv:"",price:"",where:"",photo:null,
     date:sm?sm.date:today(),session:sm?sm.name:"",place:sm?(sm.place||""):"",eye:{},nose:{},palate:{},aromas:[],
     scores:(sm&&last)?(last.scores||[]).map(s=>({who:s.who,score:null,comment:""})):(ME?[{who:ME,score:null,comment:""}]:[]),
     pairing:"",drinkBy:"",rebuy:"",verdict:""};
@@ -1457,7 +1486,7 @@ function viewConfrerie(){
     <div class="section"><div class="sec-h"><span class="num">II</span><h4>Mes amis</h4></div>
       <p class="note" style="margin-top:0">Les amis de tes soirées. Touche un prénom pour voir son palais.</p>
       ${ms.filter(m=>normA(m.name)!==normA(ME)).length?ms.filter(m=>normA(m.name)!==normA(ME)).map(m=>`<div class="member"><span class="n tap" data-palais="${esc(m.name)}">${esc(m.name)}</span><span class="mono"><button class="linkbtn" data-acave="${esc(m.name)}">Sa cave · ${friendCave(m.name).length} ›</button><button class="linkbtn" data-rmm="${m.id}" style="margin-left:12px">×</button></span></div>`).join(""):`<p class="note">Personne encore. Les dégustateurs s'ajoutent tout seuls quand ils notent un vin.</p>`}
-      <div class="actions"><button class="btn ghost small" id="addMember">+ Ajouter un ami</button></div>
+      <div class="actions"><button class="btn ghost small" id="addMember">+ Ajouter un ami</button><button class="btn ghost small" id="mergeBtn">Fusionner deux prénoms</button></div>
       <div class="member" style="margin-top:8px"><span><span class="n" style="font-size:20px">Ma cave visible par mes amis</span><br><span class="note" style="font-size:14px">Sinon, ils ne voient que les vins de vos soirées communes</span></span><button class="chip ${isPrivateCave(ME)?"":"on"}" id="privBtn">${isPrivateCave(ME)?"Privée":"Visible"}</button></div>
     </div>
 
@@ -1507,6 +1536,7 @@ bind.confrerie=v=>{
   $("#fxTry",v).onclick=()=>pourFX({color:"rouge",title:"Santé !",sub:"Essai"});
   $$("[data-palais]",v).forEach(b=>b.onclick=()=>go("palais",b.dataset.palais));
   $$("[data-acave]",v).forEach(b=>b.onclick=()=>go("amicave",b.dataset.acave));
+  $("#mergeBtn",v).onclick=mergeSheet;
   const pv=$("#privBtn",v); if(pv) pv.onclick=async()=>{ const priv=!isPrivateCave(ME); ensureMember(ME);
     Object.values(S.members).filter(m=>normA(m.name)===normA(ME)).forEach(m=>{m.privateCave=priv;m.deleted=false;m.updatedAt=now()}); await saveLocal(); scheduleSync(); toast(priv?"Ta cave est privée":"Tes amis peuvent voir ta cave"); render(true) };
   $("#bookBtn",v).onclick=()=>go("livre");
