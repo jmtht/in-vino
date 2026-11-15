@@ -1,6 +1,6 @@
 // In Vino - service worker : l'app fonctionne hors-ligne.
 // Les appels à api.github.com ne sont jamais mis en cache.
-const CACHE = "invino-v6";
+const CACHE = "invino-v7";
 const SHELL = [
   "./", "./index.html", "./manifest.webmanifest", "./vignobles.js",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",
@@ -28,4 +28,13 @@ self.addEventListener("fetch", e => {
     if (r.ok) { const c = r.clone(); caches.open(CACHE).then(ca => ca.put(e.request, c)); }
     return r;
   })));
+});
+
+// Toucher une notification ouvre (ou ramène) l'app
+self.addEventListener("notificationclick", e => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
+    for (const c of list) { if ("focus" in c) return c.focus(); }
+    return self.clients.openWindow("./");
+  }));
 });

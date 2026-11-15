@@ -430,6 +430,27 @@ details.preg .sw{width:12px;height:12px;border-radius:50%}details.preg .rn{font-
   .page{box-shadow:none;margin:0;min-height:100vh;padding:16mm 14mm;border:0;page-break-after:always;break-after:page;animation:none;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 
+
+/* ===== EFFETS : débouchage et service ===== */
+.fx{position:fixed;inset:0;z-index:95;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(90% 70% at 50% 45%,#3a0a0e,#0b0a0a 75%);animation:fade .3s;transition:opacity .55s,filter .55s;cursor:pointer;-webkit-user-select:none;user-select:none}
+.fx.bye{opacity:0;filter:blur(6px);pointer-events:none}
+.fx-svg{width:min(92vw,440px);height:min(78vh,620px);height:min(78dvh,620px);display:block}
+.fx-splash .fx-svg{height:min(70vh,560px);height:min(70dvh,560px)}
+.fx-title{position:absolute;top:calc(8vh + var(--safe-t));left:0;right:0;text-align:center;opacity:0;transform:translateY(16px);transition:opacity .8s .2s,transform .8s .2s}
+.fx-title h1{margin:0;font-family:var(--display);font-weight:400;font-size:min(22vw,110px);line-height:.85;text-transform:uppercase}
+.fx-title .script{font-size:min(12vw,60px);margin-top:-12px;transform:rotate(-6deg)}
+.fx-splash.opened .fx-title{opacity:1;transform:none}
+.fx-tap{position:absolute;bottom:calc(9vh + var(--safe-b));left:0;right:0;text-align:center;animation:tapPulse 1.6s ease-in-out infinite;transition:opacity .3s}
+.fx-splash.hint .fx-tap{color:var(--bone)}
+@keyframes tapPulse{50%{opacity:.35}}
+.fx-hold{animation:holdIn .7s cubic-bezier(.2,.8,.2,1) both}@keyframes holdIn{from{transform:translateX(120px);opacity:0}}
+.fx-caption{position:absolute;top:calc(7vh + var(--safe-t));left:0;right:0;text-align:center;padding:0 20px;animation:rise .7s .3s both}
+.fx-caption h2{margin:34px 0 0;font-family:var(--display);font-weight:400;font-size:min(13vw,62px);line-height:.9;text-transform:uppercase;overflow-wrap:anywhere}
+.notif{position:fixed;top:calc(10px + var(--safe-t));left:50%;transform:translateX(-50%);z-index:96;width:min(94vw,520px);display:flex;gap:12px;align-items:center;padding:12px 14px;background:rgba(20,18,18,.96);border:1px solid rgba(236,230,218,.22);box-shadow:0 14px 40px rgba(0,0,0,.6);animation:notifIn .5s cubic-bezier(.2,1.3,.4,1);cursor:pointer;transition:opacity .5s,transform .5s}
+.notif.out{opacity:0;transform:translate(-50%,-30px)}
+.notif .nb{font-family:var(--serif);font-size:17px;line-height:1.2;margin-top:2px}
+@keyframes notifIn{from{opacity:0;transform:translate(-50%,-40px) scale(.95)}}
+
 /* ===== ANIMATIONS ===== */
 .top{view-transition-name:topbar}.nav{view-transition-name:navbar}
 .poster{view-transition-name:hero}
@@ -697,6 +718,7 @@ async function sync(manual=false){
     for(const [id,rec] of await pendingPhotos()){ await GH.putPhoto(id,rec.blob); rec.uploaded=true; await DB.put("photos",id,rec) }
     for(let i=0;i<5;i++){
       const {sha,data} = await GH.getData();
+      if(i===0){ var BEFORE=new Set(Object.keys(S.entries)); var PREVCUR={}; for(const g of Object.values(S.games)) PREVCUR[g.id]=g.cur; }
       const remote = data?fromFile(data):fromFile({});
       const merged={}; for(const c of COLS){ merged[c]=mergeMaps(remote[c],S[c]); S[c]=mergeMaps(S[c],merged[c]) }
       const sig=o=>COLS.map(c=>Object.keys(o[c]).sort().map(k=>k+"@"+(o[c][k].updatedAt||"")).join(",")).join("|");
@@ -707,6 +729,7 @@ async function sync(manual=false){
       if(i===4) throw new Error("conflit d'écriture, réessaie");
     }
     if(manual) toast("Cave synchronisée");
+    try{ detectChanges(BEFORE,PREVCUR) }catch(e){}
     render(true);
   }catch(e){ syncErr=e.message; if(manual) toast("Synchro impossible : "+e.message) }
   syncing=false; setSync();
@@ -997,7 +1020,7 @@ function blankEntry(sess){
   const A=sess||getActive();
   const last=entries().filter(e=>A?e.session===A.name&&e.date===A.date:e.date===today()).sort((a,b)=>b.createdAt.localeCompare(a.createdAt))[0];
   const sm=A||(last&&last.session?{name:last.session,date:last.date,place:last.place}:null);
-  return {id:uid(),createdAt:now(),updatedAt:now(),name:"",producer:"",vintage:"",color:"rouge",appellation:"",region:"",country:"France",grapes:[],abv:"",price:"",where:"",photo:null,
+  return {id:uid(),by:player()||ME||"",createdAt:now(),updatedAt:now(),name:"",producer:"",vintage:"",color:"rouge",appellation:"",region:"",country:"France",grapes:[],abv:"",price:"",where:"",photo:null,
     date:sm?sm.date:today(),session:sm?sm.name:"",place:sm?(sm.place||""):"",eye:{},nose:{},palate:{},aromas:[],
     scores:last?(last.scores||[]).map(s=>({who:s.who,score:null,comment:""})):(ME?[{who:ME,score:null,comment:""}]:[]),
     pairing:"",drinkBy:"",rebuy:"",verdict:""};
@@ -1140,8 +1163,9 @@ bind.edit=v=>{
   $("#save",v).onclick=async()=>{
     if(!e.name.trim()&&!e.producer.trim()){toast("Donne au moins un nom ou un domaine");return}
     e.scores=(e.scores||[]).filter(s=>s.who);
-    const id=e.id; await upsertEntry(JSON.parse(JSON.stringify(e))); draft=null;
-    buzz(25); if(e.blind&&!e.blind.revealed){toast("Bouteille cachée jusqu'à la révélation");go("jeu",e.blind.game,true)} else {toast("Inscrit dans la cave"); go("wine",id,true)}
+    const wasNew=!S.entries[e.id]; const id=e.id; await upsertEntry(JSON.parse(JSON.stringify(e))); draft=null;
+    if(wasNew) pourFX(e.blind&&!e.blind.revealed?{secret:true,title:"En secret",sub:"Ta bouteille est cachée"}:{color:e.color,title:e.name||e.producer,sub:e.session?"Pour « "+e.session+" »":"Dans la cave"});
+    if(!wasNew) buzz(25); if(e.blind&&!e.blind.revealed){if(!wasNew)toast("Bouteille cachée jusqu'à la révélation");go("jeu",e.blind.game,true)} else {if(!wasNew)toast("Enregistré"); go("wine",id,true)}
   };
 };
 function promptSheet(title,ph,onOk){
@@ -1347,6 +1371,12 @@ function viewConfrerie(){
         <div class="actions"><button class="btn fill" id="joinBtn">Rejoindre la confrérie</button></div>`}
     </div>
 
+    <div class="section"><div class="sec-h"><span class="num">✦</span><h4>Ambiance</h4></div>
+      <div class="member"><span><span class="n" style="font-size:20px">Sons</span><br><span class="note" style="font-size:14px">Bouchon, vin qui coule (le mode silencieux de l'iPhone les coupe)</span></span><button class="chip ${FXCFG.sound?"on":""}" data-fxt="iv_sound">${FXCFG.sound?"Activés":"Coupés"}</button></div>
+      <div class="member"><span><span class="n" style="font-size:20px">Écran d'ouverture</span><br><span class="note" style="font-size:14px">La main qui débouche la bouteille</span></span><button class="chip ${FXCFG.splash?"on":""}" data-fxt="iv_splash">${FXCFG.splash?"Activé":"Coupé"}</button></div>
+      <div class="member"><span><span class="n" style="font-size:20px">Notifications</span><br><span class="note" style="font-size:14px">Quand un ami ajoute une bouteille ou qu'on sert, si l'app est ouverte ou en arrière-plan</span></span><button class="chip ${FXCFG.notif&&("Notification" in window)&&Notification.permission==="granted"?"on":""}" id="notifBtn">${FXCFG.notif&&("Notification" in window)&&Notification.permission==="granted"?"Activées":"Activer"}</button></div>
+      <div class="actions"><button class="btn ghost small" id="fxTry">Essayer : on débouche !</button></div>
+    </div>
     <div class="section"><div class="sec-h"><span class="num">IV</span><h4>Archives</h4></div>
       <p class="note" style="margin-top:0">Une sauvegarde complète (vins + photos présentes sur ce téléphone) dans un seul fichier, à garder où tu veux.</p>
       <div class="actions"><button class="btn red" id="bookBtn">Le livre de cave</button></div>
@@ -1366,6 +1396,9 @@ function installHTML(){
   return `<p class="note" style="margin-top:0">Dans <b>Chrome</b> : menu <span class="mono b">⋮</span> puis « Installer l'application » ou « Ajouter à l'écran d'accueil ».<br>Sur iPhone, dans Safari : Partager puis « Sur l'écran d'accueil ».</p>`;
 }
 bind.confrerie=v=>{
+  $$("[data-fxt]",v).forEach(b=>b.onclick=()=>{const k=b.dataset.fxt;localStorage.setItem(k,localStorage.getItem(k)==="0"?"1":"0");if(k==="iv_sound"&&FXCFG.sound)sndPop();render(true)});
+  $("#notifBtn",v).onclick=()=>{ if(FXCFG.notif&&("Notification" in window)&&Notification.permission==="granted"){localStorage.setItem("iv_notif","0");render(true)} else askNotif() };
+  $("#fxTry",v).onclick=()=>pourFX({color:"rouge",title:"Santé !",sub:"Essai"});
   $$("[data-palais]",v).forEach(b=>b.onclick=()=>go("palais",b.dataset.palais));
   $("#bookBtn",v).onclick=()=>go("livre");
   const ib=$("#installBtn",v); if(ib) ib.onclick=async()=>{const ev=INSTALL_EVT;INSTALL_EVT=null;ev.prompt();try{await ev.userChoice}catch(e){}render(true)};
@@ -2069,7 +2102,7 @@ bind.jeu=v=>{
   $$("[data-back]",v).forEach(b=>b.onclick=()=>go("soiree",g.sess));
   $$("[data-player]",v).forEach(b=>b.onclick=()=>pickPlayer(()=>{GD=null;render()}));
   $$("[data-bring]",v).forEach(b=>b.onclick=()=>bringBottle(g.id));
-  $$("[data-serve]",v).forEach(b=>b.onclick=async()=>{g.cur=b.dataset.serve;await upsertGame(g);buzz(20);toast("On sert !");render()});
+  $$("[data-serve]",v).forEach(b=>b.onclick=async()=>{const e=S.entries[b.dataset.serve];LOCAL_SERVES.add(e.id);pourFX({secret:true,title:"Bouteille de "+e.blind.by,sub:"On sert"});g.cur=e.id;await upsertGame(g);render()});
   bindReveal(v);
   $$("[data-regs]",v).forEach(b=>b.onclick=()=>{const cur=S.entries[g.cur];const ex=S.guesses[guessId(cur.id,player())];GD=JSON.parse(JSON.stringify(ex));GD.step=0;GEDIT=cur.id;render()});
   $$("[data-podium]",v).forEach(b=>b.onclick=()=>showPodium(g.id));
@@ -2429,6 +2462,182 @@ bind.livre=v=>{ $("[data-print]",v).onclick=async()=>{ toast("Préparation du li
   await Promise.all($$("img[data-photo]",v).map(async i=>{const u=await getPhoto(i.dataset.photo);if(u){i.src=u;i.style.display="";await (i.decode?i.decode().catch(()=>{}):0)}}));
   setTimeout(()=>window.print(),300) } };
 
+
+/* ============ SONS (synthétisés, aucun fichier) ============ */
+const FXCFG={get sound(){return localStorage.getItem("iv_sound")!=="0"},get splash(){return localStorage.getItem("iv_splash")!=="0"},get notif(){return localStorage.getItem("iv_notif")==="1"}};
+let AC=null;
+function audio(){ if(!FXCFG.sound) return null; try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); if(AC.state==="suspended") AC.resume(); return AC }catch(e){return null} }
+document.addEventListener("pointerdown",()=>{ if(FXCFG.sound&&(!AC||AC.state!=="running")) audio() },{capture:true,passive:true});
+function noiseBuf(ac,sec){const b=ac.createBuffer(1,Math.ceil(ac.sampleRate*sec),ac.sampleRate),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;return b}
+function sndPop(at){ const ac=audio(); if(!ac) return; const t=at||ac.currentTime+.01, out=ac.createGain(); out.gain.value=.9; out.connect(ac.destination);
+  // le « pop » : une cavité qui se vide (sinus qui chute) + un claquement
+  const o=ac.createOscillator(), g=ac.createGain(); o.type="sine"; o.frequency.setValueAtTime(620,t); o.frequency.exponentialRampToValueAtTime(170,t+.09);
+  g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(.85,t+.004); g.gain.exponentialRampToValueAtTime(.001,t+.16); o.connect(g).connect(out); o.start(t); o.stop(t+.2);
+  const n=ac.createBufferSource(); n.buffer=noiseBuf(ac,.08); const bp=ac.createBiquadFilter(); bp.type="bandpass"; bp.frequency.value=1800; bp.Q.value=.8;
+  const ng=ac.createGain(); ng.gain.setValueAtTime(.7,t); ng.gain.exponentialRampToValueAtTime(.001,t+.05); n.connect(bp).connect(ng).connect(out); n.start(t);
+  // petit souffle après le bouchon
+  const h=ac.createBufferSource(); h.buffer=noiseBuf(ac,.5); const hp=ac.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=3000;
+  const hg=ac.createGain(); hg.gain.setValueAtTime(0,t+.02); hg.gain.linearRampToValueAtTime(.06,t+.06); hg.gain.exponentialRampToValueAtTime(.001,t+.45); h.connect(hp).connect(hg).connect(out); h.start(t+.02);
+}
+function sndPour(at,dur=1.9){ const ac=audio(); if(!ac) return; const t=at||ac.currentTime+.01, out=ac.createGain(); out.gain.value=.8; out.connect(ac.destination);
+  // filet de vin : bruit filtré qui ondule
+  const n=ac.createBufferSource(); n.buffer=noiseBuf(ac,dur+.4); const bp=ac.createBiquadFilter(); bp.type="bandpass"; bp.frequency.setValueAtTime(700,t); bp.frequency.linearRampToValueAtTime(1300,t+dur); bp.Q.value=1.6;
+  const g=ac.createGain(); g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(.32,t+.12); g.gain.setValueAtTime(.32,t+dur-.25); g.gain.linearRampToValueAtTime(0,t+dur);
+  const lfo=ac.createOscillator(), lg=ac.createGain(); lfo.frequency.value=9; lg.gain.value=.12; lfo.connect(lg).connect(g.gain); lfo.start(t); lfo.stop(t+dur);
+  n.connect(bp).connect(g).connect(out); n.start(t); n.stop(t+dur+.1);
+  // glouglous : bulles dont la note monte quand le verre se remplit
+  let x=t+.08; while(x<t+dur-.15){ const p=(x-t)/dur, f=260+p*380+Math.random()*90, o=ac.createOscillator(), og=ac.createGain();
+    o.type="sine"; o.frequency.setValueAtTime(f,x); o.frequency.exponentialRampToValueAtTime(f*1.9,x+.045);
+    og.gain.setValueAtTime(0,x); og.gain.linearRampToValueAtTime(.16+Math.random()*.12,x+.008); og.gain.exponentialRampToValueAtTime(.001,x+.07);
+    o.connect(og).connect(out); o.start(x); o.stop(x+.09); x+=.06+Math.random()*.11 }
+}
+
+/* ============ LA BOUTEILLE ET LES MAINS (SVG) ============ */
+const SKIN="#e9d3bd", INK="#2a1c16";
+function capsule(x1,y1,x2,y2,w){return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${INK}" stroke-width="${w+3}" stroke-linecap="round"/><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${SKIN}" stroke-width="${w}" stroke-linecap="round"/>`}
+function ruffle(x0,y0,x1,y1,n=6){ // dentelle : festons le long d'un segment
+  let d=`M${x0} ${y0}`; for(let i=1;i<=n;i++){const t=i/n,px=x0+(x1-x0)*t,py=y0+(y1-y0)*t,mx=x0+(x1-x0)*(t-.5/n),my=y0+(y1-y0)*(t-.5/n);const nx=-(y1-y0),ny=(x1-x0),L=Math.hypot(nx,ny);d+=` Q${(mx+nx/L*9).toFixed(1)} ${(my+ny/L*9).toFixed(1)} ${px.toFixed(1)} ${py.toFixed(1)}`}
+  return `<path d="${d}" fill="#f4efe6" stroke="${INK}" stroke-width="1.2"/>`}
+function fxBottle(color){
+  const lab=(COLORS[color]||COLORS.rouge).sw;
+  return `<g class="fx-cork" style="transform-box:fill-box;transform-origin:center">
+      <rect x="-11" y="-126" width="22" height="38" rx="3" fill="#c9a06a" stroke="#5a3d22" stroke-width="1.4"/>
+      <ellipse cx="0" cy="-126" rx="11" ry="2.6" fill="#b48a55" stroke="#5a3d22" stroke-width="1"/>
+      <circle cx="-4" cy="-116" r="1" fill="#8a6338"/><circle cx="4" cy="-110" r="1.2" fill="#8a6338"/><circle cx="-2" cy="-104" r=".9" fill="#8a6338"/></g>
+    <path d="M-16 -100H16V-90H13V-32C13 -12 45 -8 45 12V200Q45 210 35 210H-35Q-45 210 -45 200V12C-45 -8 -13 -12 -13 -32V-90H-16Z" fill="url(#fxGlass)" stroke="#000" stroke-width="1.5"/>
+    <rect x="-13.5" y="-88" width="27" height="28" fill="#7d1414" stroke="#3a0808"/><path d="M-13.5 -80H13.5M-13.5 -66H13.5" stroke="#d9b23a" stroke-width=".8"/>
+    <path d="M-31 24V188M-8 -84V-36" stroke="rgba(255,255,255,.16)" stroke-width="5" stroke-linecap="round"/>
+    <rect x="-40" y="56" width="80" height="92" fill="#ece6da" stroke="#5a5048"/>
+    <text x="0" y="92" text-anchor="middle" font-family="Instrument Serif" font-size="21" fill="#1a1414">IN VINO</text>
+    <text x="0" y="108" text-anchor="middle" font-family="Pinyon" font-size="15" fill="#b3241c">veritas</text>
+    <path d="M-30 118H30" stroke="${lab}" stroke-width="3"/><text x="0" y="136" text-anchor="middle" font-family="Mono" font-size="6.5" letter-spacing="1.5" fill="#5a5048">${roman(new Date().getFullYear())}</text>`;
+}
+function fxHandHold(){ // main qui tient la bouteille par le corps, manche de velours à droite
+  return `<g class="fx-hold">
+    <path d="M44 96L230 70L236 196L44 176Z" fill="#6e1218" stroke="${INK}" stroke-width="1.4"/><path d="M60 94L60 173M70 93L70 172" stroke="#d9b23a" stroke-width="1"/>
+    ${ruffle(48,92,48,180,7)}
+    ${capsule(46,124,-24,128,15)}${capsule(46,141,-26,146,15)}${capsule(44,158,-24,163,14)}${capsule(40,174,-18,178,12)}
+    ${capsule(52,108,8,114,15)}
+    <path d="M-14 122q4 5 0 10M-16 140q4 5 0 10M-14 157q4 5 0 10" stroke="${INK}" stroke-width=".9" fill="none" opacity=".55"/></g>`;
+}
+function fxHandPinch(){ // main qui saisit le bouchon, arrive par le haut à droite
+  return `<g class="fx-pinch">
+    <path d="M66 -196L210 -300L262 -224L118 -122Z" fill="#6e1218" stroke="${INK}" stroke-width="1.4"/><path d="M80 -186L130 -135M92 -196L140 -146" stroke="#d9b23a" stroke-width="1"/>
+    ${ruffle(64,-190,116,-128,6)}
+    <ellipse cx="62" cy="-148" rx="30" ry="22" transform="rotate(-34 62 -148)" fill="${SKIN}" stroke="${INK}" stroke-width="1.4"/>
+    ${capsule(66,-160,42,-142,12)}${capsule(70,-148,48,-130,11)}
+    ${capsule(46,-162,15,-122,13)}
+    ${capsule(56,-124,15,-108,14)}
+    <path d="M24 -126q5 3 8 -2M26 -112q5 3 8 -1" stroke="${INK}" stroke-width=".9" fill="none" opacity=".55"/></g>`;
+}
+const FXDEFS=`<defs><linearGradient id="fxGlass" x1="0" x2="1"><stop offset="0" stop-color="#0c140e"/><stop offset=".35" stop-color="#22362a"/><stop offset=".7" stop-color="#101a13"/><stop offset="1" stop-color="#050806"/></linearGradient>
+  <clipPath id="fxBowl"><path d="M100 330C100 402 118 426 140 426C162 426 180 402 180 330Z"/></clipPath></defs>`;
+const anim=(el,kf,opt)=>el?el.animate(kf,Object.assign({fill:"forwards",easing:"cubic-bezier(.3,.7,.2,1)"},opt)):{finished:Promise.resolve()};
+
+/* ---- ouverture de l'appli ---- */
+function splashOpen(){
+  if(!FXCFG.splash||sessionStorage.getItem("iv_splashed")) return;
+  sessionStorage.setItem("iv_splashed","1");
+  const m=document.createElement("div"); m.className="fx fx-splash";
+  m.innerHTML=`<svg viewBox="0 0 400 600" class="fx-svg">${FXDEFS}
+      <g class="fx-scene" transform="translate(196 340) scale(1.12)">${fxBottle("rouge")}${fxHandHold()}<g class="fx-ph" style="transform:translate(150px,-170px);opacity:0">${fxHandPinch()}</g>
+      <path class="fx-vapor" d="M0 -132c-8 -14 8 -22 0 -36s8 -22 0 -34" fill="none" stroke="rgba(236,230,218,.5)" stroke-width="3" stroke-linecap="round" opacity="0"/></g></svg>
+    <div class="fx-title"><h1><span class="tall">In Vino</span></h1><div class="script">veritas</div></div>
+    <div class="fx-tap mono b">${FXCFG.sound?"Touche pour déboucher":""}</div>`;
+  document.body.appendChild(m);
+  const run=()=>{ m.onclick=null; const ac=audio(); const t0=ac?ac.currentTime:0; $(".fx-tap",m).remove();
+    const ph=$(".fx-ph",m), cork=$(".fx-cork",m), scene=$(".fx-scene",m), vap=$(".fx-vapor",m);
+    anim(ph,[{transform:"translate(150px,-170px)",opacity:0},{transform:"translate(0,0)",opacity:1}],{duration:480});
+    anim(ph,[{transform:"translate(0,0)"},{transform:"translate(2px,-16px)"}],{duration:300,delay:560,easing:"ease-in"});
+    anim(cork,[{transform:"translate(0,0)"},{transform:"translate(2px,-16px)"}],{duration:300,delay:560,easing:"ease-in"});
+    if(ac) sndPop(t0+.86);
+    setTimeout(()=>{ buzz(25);
+      anim(cork,[{transform:"translate(2px,-16px) rotate(0)"},{transform:"translate(-70px,-330px) rotate(-620deg)",opacity:0}],{duration:900,easing:"cubic-bezier(.2,.9,.4,1)"});
+      anim(ph,[{transform:"translate(2px,-16px)"},{transform:"translate(170px,-200px)",opacity:0}],{duration:650,delay:120,easing:"ease-in"});
+      anim(vap,[{opacity:0,transform:"translateY(0)"},{opacity:.7,transform:"translateY(-10px)"},{opacity:0,transform:"translateY(-40px)"}],{duration:1200,easing:"ease-out"});
+      anim(scene,[{transform:"translate(196px,340px) scale(1.12) rotate(0)"},{transform:"translate(196px,340px) scale(1.12) rotate(-2.5deg)"},{transform:"translate(196px,340px) scale(1.12) rotate(1.5deg)"},{transform:"translate(196px,340px) scale(1.12) rotate(0)"}],{duration:420,easing:"ease-out"});
+      m.classList.add("opened");
+    },860);
+    setTimeout(()=>{ m.classList.add("bye"); setTimeout(()=>{m.remove(); if(route.name==="cave"){INTRO=true;render()}},650) },2300);
+  };
+  if(REDUCED){ m.remove(); return }
+  if(FXCFG.sound){ m.onclick=run; setTimeout(()=>{ if(document.body.contains(m)&&m.onclick) m.classList.add("hint") },2500) } else setTimeout(run,500);
+}
+
+/* ---- on débouche et on sert ---- */
+function pourFX({color="rouge",title="",sub="",secret=false}={}){
+  if(REDUCED){ sndPop(); return }
+  const wine=secret?"#5a0f16":(color==="blanc"||color==="bulles"||color==="doux"?"#e3c46a":color==="rose"?"#e98d84":color==="orange"?"#d4893b":"#5c0a14");
+  const m=document.createElement("div"); m.className="fx fx-pour";
+  m.innerHTML=`<svg viewBox="0 0 400 520" class="fx-svg">${FXDEFS}
+      <g class="fx-glass"><path d="M100 330C100 402 118 426 140 426C162 426 180 402 180 330Z" fill="rgba(236,230,218,.05)"/>
+        <g clip-path="url(#fxBowl)"><g class="fx-fill" style="transform:translateY(58px)"><path d="M90 372q12 -5 25 0t25 0t25 0t25 0V440H90Z" fill="${wine}"/><path d="M90 372q12 -5 25 0t25 0t25 0t25 0" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="1.5"/></g></g>
+        <path d="M100 330C100 402 118 426 140 426C162 426 180 402 180 330" fill="none" stroke="rgba(236,230,218,.7)" stroke-width="1.6"/><path d="M106 336C108 380 118 404 132 412" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="3" stroke-linecap="round"/>
+        <path d="M140 426V478M112 482Q140 474 168 482" stroke="rgba(236,230,218,.7)" stroke-width="1.6" fill="none"/></g>
+      <line class="fx-stream" x1="140" y1="301" x2="140" y2="418" stroke="${wine}" stroke-width="5.5" stroke-linecap="round" stroke-dasharray="120" stroke-dashoffset="120"/>
+      <g class="fx-bot" style="transform-box:view-box;transform-origin:0 0;transform:translate(270px,230px) rotate(0deg) translate(0px,-80px) scale(.82)">
+        ${fxBottle(secret?"rouge":color)}${fxHandHold()}<g class="fx-ph" style="opacity:0;transform:translate(150px,-170px)">${fxHandPinch()}</g></g></svg>
+    <div class="fx-caption"><div class="mono b">${esc(sub)}</div><h2><span class="tall">${esc(title)}</span></h2></div>`;
+  document.body.appendChild(m);
+  const ac=audio(), t0=ac?ac.currentTime:0, $m=s=>$(s,m);
+  const bot=$m(".fx-bot"), ph=$m(".fx-ph"), cork=$m(".fx-cork"), stream=$m(".fx-stream"), fill=$m(".fx-fill");
+  const up="translate(270px,230px) rotate(0deg) translate(0px,-80px) scale(.82)", tilt="translate(283px,262px) rotate(-104deg) translate(0px,-80px) scale(.82)";
+  anim(ph,[{transform:"translate(150px,-170px)",opacity:0},{transform:"translate(0,0)",opacity:1}],{duration:420,delay:120});
+  anim(ph,[{transform:"translate(0,0)"},{transform:"translate(2px,-14px)"}],{duration:260,delay:600,easing:"ease-in"});
+  anim(cork,[{transform:"translate(0,0)"},{transform:"translate(2px,-14px)"}],{duration:260,delay:600,easing:"ease-in"});
+  if(ac){ sndPop(t0+.88); sndPour(t0+1.95,1.9) }
+  const T=[];
+  T.push(setTimeout(()=>{ buzz(20);
+    anim(cork,[{transform:"translate(2px,-14px) rotate(0)"},{transform:"translate(-60px,-260px) rotate(-560deg)",opacity:0}],{duration:800,easing:"cubic-bezier(.2,.9,.4,1)"});
+    anim(ph,[{transform:"translate(2px,-14px)"},{transform:"translate(160px,-190px)",opacity:0}],{duration:520,delay:100,easing:"ease-in"});
+  },880));
+  T.push(setTimeout(()=>anim(bot,[{transform:up},{transform:tilt}],{duration:640,easing:"cubic-bezier(.5,0,.2,1)"}),1300));
+  T.push(setTimeout(()=>{ anim(stream,[{strokeDashoffset:120},{strokeDashoffset:0}],{duration:260,easing:"ease-in"});
+    anim(fill,[{transform:"translateY(58px)"},{transform:"translateY(0px)"}],{duration:1750,delay:120,easing:"cubic-bezier(.3,.2,.4,1)"});
+    anim(fill,[{transform:"translateY(0px) translateX(0)"},{transform:"translateY(0px) translateX(-8px)"},{transform:"translateY(0px) translateX(0)"}],{duration:700,delay:1900,iterations:2,easing:"ease-in-out"});
+  },1950));
+  T.push(setTimeout(()=>{ anim(stream,[{strokeDashoffset:0},{strokeDashoffset:-120}],{duration:260,easing:"ease-out"}); anim(bot,[{transform:tilt},{transform:up}],{duration:600,easing:"cubic-bezier(.5,0,.2,1)"}) },3800));
+  T.push(setTimeout(()=>{ m.classList.add("bye"); setTimeout(()=>m.remove(),600) },4500));
+  m.onclick=()=>{ T.forEach(clearTimeout); if(AC&&AC.state==="running"){ AC.suspend().then(()=>AC.resume()) } m.classList.add("bye"); setTimeout(()=>m.remove(),400) };
+}
+
+/* ============ NOTIFICATIONS ============ */
+let LOCAL_SERVES=new Set();
+function notifBanner(title,body,go2){
+  const n=document.createElement("div"); n.className="notif";
+  n.innerHTML=`<svg viewBox="0 0 40 40" width="34" height="34"><circle cx="20" cy="20" r="19" fill="#2a0809" stroke="rgba(236,230,218,.3)"/><rect x="16" y="6" width="8" height="10" rx="1.5" fill="#c9a06a"/><path d="M15 16h10v4c0 2 5 3 5 7v8H10v-8c0-4 5-5 5-7z" fill="#7a0f19"/></svg>
+    <div><div class="mono b">${esc(title)}</div><div class="nb">${esc(body)}</div></div>`;
+  n.onclick=()=>{n.remove();go2&&go2()};
+  document.body.appendChild(n); setTimeout(()=>n.classList.add("out"),5200); setTimeout(()=>n.remove(),5800);
+}
+async function notifyUser(title,body,go2,tag){
+  sndPop(); buzz([40,30,40]);
+  if(document.visibilityState==="visible") return notifBanner(title,body,go2);
+  if(FXCFG.notif&&"Notification" in window&&Notification.permission==="granted"){
+    try{ const r=await navigator.serviceWorker.ready; await r.showNotification(title,{body,tag,icon:"icon-192.png",badge:"icon-192.png",vibrate:[60,40,60],renotify:true,data:{url:location.pathname}}) }
+    catch(e){ try{ new Notification(title,{body,icon:"icon-192.png"}) }catch(_){} }
+  }
+}
+// appelé par la synchro : détecte ce que les autres ont ajouté
+function detectChanges(before,prevCur){
+  if(!before.size) return; // première synchro d'un téléphone : on ne notifie pas tout l'historique
+  const me=player(), fresh=Date.now()-24*3600e3;
+  const added=Object.values(S.entries).filter(e=>!before.has(e.id)&&!e.deleted&&e.session&&new Date(e.createdAt).getTime()>fresh&&!(e.by&&same(e.by,me))&&!(e.blind&&same(e.blind.by,me)));
+  if(added.length===1){ const e=added[0], who=(e.blind&&e.blind.by)||e.by||"Quelqu'un";
+    notifyUser(`${who} a ajouté une bouteille`, e.blind&&!e.blind.revealed?`Une bouteille mystère pour « ${e.session} »`:`${e.name||e.producer} · ${e.session}`, ()=>go("soiree",sessionKey(e)), "add-"+e.id) }
+  else if(added.length>1){ const s=added[0].session; notifyUser(`${added.length} nouvelles bouteilles`,`Pour « ${s} »`,()=>go("soiree",sessionKey(added[0])),"add-many") }
+  for(const g of Object.values(S.games)){ if(g.deleted||!g.cur||g.cur===prevCur[g.id]||LOCAL_SERVES.has(g.cur)) continue;
+    const e=S.entries[g.cur]; if(!e||!e.blind||e.blind.revealed) continue; LOCAL_SERVES.add(g.cur);
+    if(route.name==="jeu"&&route.id===g.id&&document.visibilityState==="visible") pourFX({secret:true,title:`Bouteille de ${e.blind.by}`,sub:"On sert"});
+    else notifyUser("On sert !",`La bouteille de ${e.blind.by} est dans les verres`,()=>go("jeu",g.id),"serve-"+g.id) }
+}
+async function askNotif(){
+  if(!("Notification" in window)) return toast(IS_IOS?"Installe d'abord l'app sur l'écran d'accueil (iOS 16.4 ou plus)":"Notifications non disponibles ici");
+  const p=await Notification.requestPermission();
+  if(p==="granted"){ localStorage.setItem("iv_notif","1"); toast("Notifications activées"); sndPop() } else { localStorage.setItem("iv_notif","0"); toast("Notifications refusées") }
+  render(true);
+}
+
 /* ============ INVITATION ============ */
 async function handleInvite(src){
   const fromHash=typeof src!=="string";
@@ -2446,6 +2655,7 @@ async function handleInvite(src){
 
 /* ============ DÉMARRAGE ============ */
 (async()=>{
+  splashOpen();
   await loadLocal();
   history.replaceState({name:"cave",id:null},"");
   render();
@@ -2460,6 +2670,7 @@ async function handleInvite(src){
   setInterval(()=>{if(!syncing)setSync()},30000);
   setInterval(()=>{ if(CFG&&!syncing&&document.visibilityState==="visible"&&(route.name==="jeu"||route.name==="soiree")) sync() },6000);
   setInterval(()=>{ if(CFG&&!syncing&&document.visibilityState==="visible") sync() },90000);
+  setInterval(()=>{ if(CFG&&!syncing&&document.visibilityState==="hidden"&&FXCFG.notif) sync() },60000);
   if("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("sw.js").catch(()=>{});
   if(navigator.storage&&navigator.storage.persist) navigator.storage.persist().catch(()=>{});
 })();
