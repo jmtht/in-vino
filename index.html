@@ -439,6 +439,7 @@ details.preg .sw{width:12px;height:12px;border-radius:50%}details.preg .rn{font-
 .fx-title h1{margin:44px 0 0;font-family:var(--display);font-weight:400;font-size:min(20vw,96px);line-height:.85;text-transform:uppercase}
 .fx-title .script{font-size:min(11vw,52px);margin-top:-10px;transform:rotate(-6deg);clip-path:inset(0 100% 0 0);transition:clip-path 1.1s .35s cubic-bezier(.5,0,.2,1)}
 .fx-splash.opened .fx-title{opacity:1;transform:none}.fx-splash.opened .fx-title .script{clip-path:inset(0 0 0 0)}
+.fx-tap{position:absolute;left:0;right:0;top:calc(14vh + var(--safe-t));text-align:center;font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--paper,#ece6da);opacity:0;transition:opacity .6s}.fx-splash.waiting .fx-tap{opacity:.7;animation:tapPulse 1.6s ease-in-out infinite}.fx-splash.waiting .fx-cork{animation:corkWiggle 1.6s ease-in-out infinite}@keyframes tapPulse{50%{opacity:.3}}@keyframes corkWiggle{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
 .fx-splash .fx-svg{height:min(56vh,480px);height:min(56dvh,480px);margin-top:-12vh}
 .fx-caption{position:absolute;top:calc(8vh + var(--safe-t));left:0;right:0;text-align:center;padding:0 20px;animation:rise .8s .2s both}
 .fx-sante{font-size:min(12vw,54px);margin-top:4px;transform:rotate(-6deg);clip-path:inset(0 100% 0 0);transition:clip-path .9s cubic-bezier(.5,0,.2,1)}.fx-pour.clinked .fx-sante{clip-path:inset(0 0 0 0)}
@@ -462,6 +463,13 @@ details.preg .sw{width:12px;height:12px;border-radius:50%}details.preg .rn{font-
 .card.notmine::after{content:"Pas dans ta cave";position:absolute;left:-1px;bottom:-1px;background:var(--crimson);color:var(--bone);font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;padding:3px 7px}
 /* ===== ANIMATIONS ===== */
 .top{view-transition-name:topbar}.nav{view-transition-name:navbar}
+.zoomable{cursor:zoom-in}
+.zoom-btn{display:inline-flex;align-items:center;gap:6px;background:rgba(11,10,10,.55);border:1px solid rgba(236,230,218,.35);color:var(--paper,#ece6da);padding:5px 9px;font:inherit;font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;cursor:pointer}
+.lightbox{position:fixed;inset:0;z-index:120;background:rgba(6,5,5,.96);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .35s ease;-webkit-user-select:none;user-select:none;touch-action:pinch-zoom}
+.lightbox.on{opacity:1}.lightbox.out{opacity:0}
+.lightbox img{max-width:100vw;max-height:100vh;max-height:100dvh;object-fit:contain;display:block;filter:none;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.lightbox .lb-x{position:absolute;top:calc(14px + var(--safe-t));right:14px;width:42px;height:42px;border-radius:50%;border:1px solid rgba(236,230,218,.4);background:rgba(11,10,10,.6);color:#ece6da;font-size:22px;line-height:1;cursor:pointer}
+.lightbox .lb-cap{position:absolute;left:0;right:0;bottom:calc(18px + var(--safe-b));text-align:center;padding:0 20px;font-family:var(--display);font-size:26px;text-transform:uppercase;color:#ece6da;text-shadow:0 2px 12px #000}
 .poster{view-transition-name:hero}
 ::view-transition-old(root){animation:vtOut .26s ease both}
 ::view-transition-new(root){animation:vtIn .42s cubic-bezier(.2,.7,.2,1) both}
@@ -850,6 +858,7 @@ function openSheet(inner,bindFn,onClose){const m=document.createElement("div");m
   m.onclick=e=>{if(e.target===m||e.target.closest("[data-x]"))closeModal()};openModal(m,onClose);bindFn&&bindFn(m);return m}
 window.addEventListener("popstate",ev=>{
   if(POP_SKIP){const r=POP_SKIP;POP_SKIP=null;r();return}
+  if(LIGHTBOX){LIGHTBOX();return}
   if(MODAL){const m=MODAL;m.remove();MODAL=null;m._onClose&&m._onClose();return}   // bouton retour Android : ferme la fenêtre
   if(route.name==="wine") lastWine=route.id;
   route=ev.state||{name:"cave"};transition(()=>{render();
@@ -986,11 +995,11 @@ function viewWine(id){
   let sec=0; const S_=t=>`<div class="sec-h"><span class="num">${["I","II","III","IV","V","VI","VII"][sec++]}</span><h4>${t}</h4></div>`;
   const scores=(e.scores||[]).slice().sort((x,y)=>(parseFloat(y.score)||0)-(parseFloat(x.score)||0));
   return `<article>
-    <div class="poster">
+    <div class="poster${e.photo?" zoomable":""}" ${e.photo?`data-zoom="${e.photo}" data-zoom-cap="${esc(e.name||e.producer||"")}"`:""}>
       ${e.photo?`<img class="bgimg" data-photo="${e.photo}" alt="" style="display:none"><div class="tint"></div>`:""}
       <div class="shade"></div>
       <div class="inner">
-        <div class="row-between"><button class="linkbtn" onclick="history.back()">← Retour</button><span class="mono b">N° ${pad(no)} · ${col.label}</span></div>
+        <div class="row-between"><button class="linkbtn" onclick="history.back()">← Retour</button><span class="row" style="gap:10px;align-items:center">${e.photo?`<button class="zoom-btn" data-zoom="${e.photo}" data-zoom-cap="${esc(e.name||e.producer||"")}">⤢ Photo</button>`:""}<span class="mono b">N° ${pad(no)} · ${col.label}</span></span></div>
         <div>
           <div class="row-between" style="align-items:flex-end;margin-bottom:12px">
             <div class="circles">${[1,2,3,4,5].map(i=>`<i class="${a!=null&&a>=i*4-2?"f":""}"></i>`).join("")}</div>
@@ -2037,7 +2046,7 @@ function showReveal(wid){
   m.innerHTML=`<div class="curtain l"></div><div class="curtain r"></div>
     <div class="rv">
       <div class="mono b rv-a">La bouteille de ${esc(e.blind.by)} était…</div>
-      <div class="rv-ph">${e.photo?`<img data-photo="${e.photo}" alt="" style="display:none">`:bottleSVG(e.color)}</div>
+      <div class="rv-ph${e.photo?" zoomable":""}" ${e.photo?`data-zoom="${e.photo}"`:""}>${e.photo?`<img data-photo="${e.photo}" alt="" style="display:none">`:bottleSVG(e.color)}</div>
       <h2 class="rv-name">${letters}</h2>
       <div class="script rv-script">${esc(e.appellation||(R?R.name:"")||SCRIPT_COLOR[e.color]||"")}</div>
       <div class="mono b rv-meta">${esc([e.producer&&e.name?e.producer:"",e.vintage?e.vintage+(roman(e.vintage)?" · "+roman(e.vintage):""):"",R?R.name:"",e.price?e.price+" €":""].filter(Boolean).join(" · "))}</div>
@@ -2607,7 +2616,7 @@ VIEWS.livre=()=>{
       <div class="mono" style="margin-top:40px">Le livre de cave de la confrérie</div><div class="mono">${yrs.length?roman(yrs[0])+(yrs.length>1?" – "+roman(yrs[yrs.length-1]):""):""}</div><div class="mono" style="margin-top:12px">${all.length} vins · ${groupSessions().length} soirées · ${members().length} palais</div></div>
     ${all.map(e=>{const a=avg(e);return `<div class="page wine-page">
       <div class="row-between mono"><span>N° ${pad(nos[e.id])}</span><span>${esc(fmtDate(e.date))}${e.session?" · "+esc(e.session):""}</span></div>
-      ${e.photo?`<div class="bk-ph"><img data-photo="${e.photo}" style="display:none" alt=""></div>`:""}
+      ${e.photo?`<div class="bk-ph zoomable" data-zoom="${e.photo}"><img data-photo="${e.photo}" style="display:none" alt=""></div>`:""}
       <h2>${esc(e.name||e.producer||"Sans nom")}</h2><div class="script" style="font-size:36px">${esc(e.appellation||SCRIPT_COLOR[e.color]||"")}</div>
       <div class="bk-spec">${[["Domaine",e.producer],["Millésime",e.vintage],["Région",[e.region,e.country].filter(Boolean).join(", ")],["Cépages",(e.grapes||[]).join(", ")],["Prix",e.price?e.price+" €":""],["Moyenne",a!=null?fmtScore(a)+" / 20":""]].filter(x=>x[1]).map(([k,v])=>`<div><span class="mono">${k}</span><b>${esc(v)}</b></div>`).join("")}</div>
       ${(e.aromas||[]).length?`<p><span class="mono">Arômes</span> ${esc(e.aromas.join(", "))}</p>`:""}
@@ -2625,7 +2634,9 @@ bind.livre=v=>{ $("[data-print]",v).onclick=async()=>{ toast("Préparation du li
 const FXCFG={get sound(){return localStorage.getItem("iv_sound")!=="0"},get splash(){return localStorage.getItem("iv_splash")!=="0"},get notif(){return localStorage.getItem("iv_notif")==="1"}};
 let AC=null;
 function audio(){ if(!FXCFG.sound) return null; try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); if(AC.state==="suspended") AC.resume(); return AC }catch(e){return null} }
-document.addEventListener("pointerdown",()=>{ if(FXCFG.sound&&(!AC||AC.state!=="running")) audio() },{capture:true,passive:true});
+function unlockAudio(){ if(!FXCFG.sound) return; const ac=audio(); if(!ac) return;
+  try{ const b=ac.createBuffer(1,1,22050), src=ac.createBufferSource(); src.buffer=b; src.connect(ac.destination); src.start(0) }catch(e){} }
+["pointerdown","touchend","click","keydown"].forEach(ev=>document.addEventListener(ev,()=>{ if(FXCFG.sound&&(!AC||AC.state!=="running")) unlockAudio() },{capture:true,passive:true}));
 /* Les sons sont de vrais enregistrements : son-bouchon.mp3 et son-service.mp3, à côté de index.html.
    Le moment du « POP » est repéré automatiquement dans le fichier (pic de volume) pour tomber pile avec l'animation. */
 const SND_FILES={pop:"son-bouchon.mp3",pour:"son-service.mp3",tchin:"son-tchin.mp3"}, SND={};
@@ -2679,14 +2690,27 @@ function splashOpen(){
   sessionStorage.setItem("iv_splashed","1");
   const m=document.createElement("div"); m.className="fx fx-splash";
   m.innerHTML=`<svg viewBox="0 0 400 600" class="fx-svg"><g transform="translate(200 330) scale(1.05)">${lineBottle()}${ring(0,-104,"fx-ring")}${ring(0,-104,"fx-ring")}</g></svg>
-    <div class="fx-title"><div class="mono b">Liber Degustationum</div><h1><span class="tall">In Vino</span></h1><div class="script">veritas</div></div>`;
+    <div class="fx-title"><div class="mono b">Liber Degustationum</div><h1><span class="tall">In Vino</span></h1><div class="script">veritas</div></div>
+    <div class="fx-tap mono">Touche pour déboucher</div>`;
   document.body.appendChild(m);
-  const go2=()=>{ const T=fxTime(); drawLines(m,100,900); popAt(m,1350,T);
-    setTimeout(()=>m.classList.add("opened"),1500);
-    setTimeout(()=>{ m.classList.add("bye"); setTimeout(()=>{m.remove(); if(route.name==="cave"){INTRO=true;render()}},650) },2700) };
-  // le son ne peut partir que si le téléphone l'autorise (appli installée sur Android) ; sinon l'animation joue en silence
-  const ac=audio(); if(ac&&ac.state!=="running"){ Promise.race([ac.resume(),new Promise(r=>setTimeout(r,120))]).then(go2) } else go2();
-  m.onclick=()=>{ m.classList.add("bye"); setTimeout(()=>m.remove(),400) };
+  let done=false;
+  const finish=(popMs)=>{ if(done) return; done=true; m.classList.remove("waiting"); const T=fxTime(); popAt(m,popMs,T);
+    setTimeout(()=>m.classList.add("opened"),popMs+150);
+    setTimeout(()=>{ m.classList.add("bye"); setTimeout(()=>{m.remove(); if(route.name==="cave"){INTRO=true;render()}},650) },popMs+1350) };
+  const close=()=>{ done=true; m.classList.add("bye"); setTimeout(()=>m.remove(),400) };
+  const ac=audio();
+  const start=()=>{
+    if(AC&&AC.state==="running"||!FXCFG.sound){ drawLines(m,100,900); finish(1350); m.onclick=close; return }
+    /* iPhone : Apple interdit tout son tant qu'on n'a pas touché l'écran.
+       La bouteille se dessine puis attend un toucher pour sauter (avec le POP). Sans toucher, elle saute en silence. */
+    drawLines(m,100,900);
+    const wait=setTimeout(()=>finish(0),4200);
+    setTimeout(()=>{ if(!done) m.classList.add("waiting") },1000);
+    const tap=()=>{ if(done){ close(); return } clearTimeout(wait); unlockAudio(); finish(300) };
+    m.addEventListener("touchend",e=>{ e.preventDefault(); tap() },{passive:false});
+    m.addEventListener("click",tap);
+  };
+  if(ac&&ac.state!=="running"){ Promise.race([ac.resume(),new Promise(r=>setTimeout(r,150))]).then(start) } else start();
 }
 
 /* ---- on débouche, on sert, on trinque ---- */
@@ -2740,6 +2764,32 @@ function pourFX({color="rouge",title="",sub="",secret=false}={}){
   at(CLINK+1500,()=>{ m.classList.add("bye"); setTimeout(()=>m.remove(),600) });
   m.onclick=()=>{ timers.forEach(clearTimeout); m.classList.add("bye"); setTimeout(()=>m.remove(),400) };
 }
+
+
+/* ============ PHOTO EN GRAND, EN COULEUR ============ */
+let LIGHTBOX=null;
+async function openPhoto(id,cap="",from){
+  const u=await getPhoto(id); if(!u) return toast("Photo indisponible");
+  const m=document.createElement("div"); m.className="lightbox";
+  m.innerHTML=`<img src="${u}" alt=""><button class="lb-x" aria-label="Fermer">×</button>${cap?`<div class="lb-cap">${esc(cap)}</div>`:""}`;
+  document.body.appendChild(m); const img=$("img",m);
+  await (img.decode?img.decode().catch(()=>{}):0);
+  requestAnimationFrame(()=>m.classList.add("on"));
+  if(from&&!REDUCED){ const a=from.getBoundingClientRect(), b=img.getBoundingClientRect();
+    if(a.width&&b.width){ const sc=Math.max(a.width/b.width,a.height/b.height);
+      img.animate([{transform:`translate(${a.left+a.width/2-(b.left+b.width/2)}px,${a.top+a.height/2-(b.top+b.height/2)}px) scale(${sc})`,filter:"grayscale(1) contrast(1.25)",clipPath:`inset(${Math.max(0,(b.height*sc-a.height)/2/sc)}px ${Math.max(0,(b.width*sc-a.width)/2/sc)}px)`},
+        {transform:"none",filter:"grayscale(0) contrast(1)",clipPath:"inset(0px 0px)"}],{duration:520,easing:"cubic-bezier(.2,.8,.2,1)"}) } }
+  LIGHTBOX=()=>{ LIGHTBOX=null; m.classList.add("out"); setTimeout(()=>m.remove(),350) };
+  history.pushState({...(history.state||{}),lb:1},"");
+  m.onclick=e=>{ if(e.target.closest(".lb-x")||e.target===m||e.target===img){ history.back() } };
+}
+document.addEventListener("click",e=>{
+  const z=e.target.closest("[data-zoom]"); if(!z) return;
+  if(!z.classList.contains("zoom-btn")&&e.target.closest("button,a,input,label,select,textarea,.linkbtn")) return;
+  e.preventDefault(); e.stopPropagation();
+  const src=z.classList.contains("zoom-btn")?z.closest(".poster"):z;
+  openPhoto(z.dataset.zoom,z.dataset.zoomCap||"",src);
+},true);
 
 /* ============ NOTIFICATIONS ============ */
 let LOCAL_SERVES=new Set();
