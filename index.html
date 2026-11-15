@@ -456,6 +456,9 @@ details.preg .sw{width:12px;height:12px;border-radius:50%}details.preg .rn{font-
 .wl-in>.mono{text-align:center}
 .wl-in h1{margin:52px 0 0;text-align:center;font-family:var(--display);font-weight:400;font-size:min(22vw,110px);line-height:.85;text-transform:uppercase}
 .wl-in .script{text-align:center;font-size:48px;margin-top:-14px;transform:rotate(-5deg)}
+.keep-card{margin-top:24px;padding:16px;border:1px solid rgba(179,36,28,.5);background:linear-gradient(135deg,rgba(179,36,28,.16),var(--ink2) 60%)}
+.card.notmine{border-style:dashed}
+.card.notmine::after{content:"Pas dans ta cave";position:absolute;left:-1px;bottom:-1px;background:var(--crimson);color:var(--bone);font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;padding:3px 7px}
 /* ===== ANIMATIONS ===== */
 .top{view-transition-name:topbar}.nav{view-transition-name:navbar}
 .poster{view-transition-name:hero}
@@ -630,7 +633,7 @@ const DB = (()=>{
 })();
 
 /* ============ ÉTAT ============ */
-const COLS=["entries","members","games","guesses","soirees","attend"];
+const COLS=["entries","members","games","guesses","soirees","attend","saves"];
 let S = {entries:{}, members:{}, games:{}, guesses:{}};          // données
 let CFG = null;                            // config sync {owner,repo,branch,token}
 try{CFG=JSON.parse(localStorage.getItem("iv_cfg")||"null")}catch(e){}
@@ -647,12 +650,24 @@ let VIS=null;
 const attendees = id => Object.values(S.attend).filter(a=>!a.deleted&&a.soiree===id).map(a=>a.who);
 const attends = (id,who=ME) => !who || attendees(id).some(w=>normA(w)===normA(who));
 const mySoireesRaw = () => Object.values(S.soirees).filter(so=>!so.deleted&&attends(so.id));
+/* ---- La cave des amis ---- */
+const saveId = (wid,who=ME) => wid+":"+normA(who).replace(/ /g,"_");
+const isSaved = (wid,who=ME) => { const x=S.saves[saveId(wid,who)]; return !!(x&&!x.deleted) };
+async function setSaved(wid,on){ const id=saveId(wid); S.saves[id]={id,wine:wid,who:ME,deleted:!on,updatedAt:now()}; await saveLocal(); scheduleSync() }
+const isPrivateCave = name => Object.values(S.members).some(m=>!m.deleted&&normA(m.name)===normA(name)&&m.privateCave);
+const inMyCave = id => entries().some(e=>e.id===id);
+function friendCave(name){
+  const n=normA(name), priv=isPrivateCave(name), mine=new Set(entries().map(e=>e.id));
+  return allEntries().filter(e=>{ if(e.blind&&!e.blind.revealed) return false;
+    const his=normA(e.by||"")===n || (e.scores||[]).some(x=>normA(x.who||"")===n&&x.score!=null&&x.score!=="") || isSaved(e.id,name);
+    return his && (!priv || mine.has(e.id)) });
+}
 function addAttendRaw(id,who){ if(!who) return; const aid=id+":"+normA(who).replace(/ /g,"_"); const ex=S.attend[aid]; if(ex&&!ex.deleted) return; S.attend[aid]={id:aid,soiree:id,who,updatedAt:now(),deleted:false} }
 function removeAttendRaw(id,who){ const aid=id+":"+normA(who).replace(/ /g,"_"); if(S.attend[aid]) S.attend[aid]=Object.assign({},S.attend[aid],{deleted:true,updatedAt:now()}) }
 const entries = () => {
-  if(!VIS){ const me=ME, keys=new Set(mySoireesRaw().map(so=>so.key));
+  if(!VIS){ const me=ME, keys=new Set(mySoireesRaw().map(so=>so.key)), kept=new Set(Object.values(S.saves).filter(x=>!x.deleted&&normA(x.who)===normA(me||"")).map(x=>x.wine));
     VIS=allEntries().filter(e=>!isHidden(e)&&( !me || (!e.by&&!e.session) || normA(e.by||"")===normA(me) || (e.scores||[]).some(x=>normA(x.who||"")===normA(me)&&x.score!=null&&x.score!=="")
-      || (e.blind&&normA(e.blind.by)===normA(player())) || (e.session&&keys.has((e.date||"")+"|"+e.session)) )) }
+      || (e.blind&&normA(e.blind.by)===normA(player())) || (e.session&&keys.has((e.date||"")+"|"+e.session)) || kept.has(e.id) )) }
   return VIS.slice() };
 const members = () => { const seen=new Set(); return Object.values(S.members).filter(m=>!m.deleted&&m.name).sort((a,b)=>a.name.localeCompare(b.name)).filter(m=>{const k=normA(m.name); if(seen.has(k)) return false; seen.add(k); return true}) };
 function avg(e){const s=(e.scores||[]).map(x=>parseFloat(x.score)).filter(x=>!isNaN(x));return s.length?s.reduce((a,b)=>a+b,0)/s.length:null}
@@ -844,7 +859,7 @@ function render(soft=false){
   if(soft && route.name==="edit") return; // ne pas écraser un formulaire en cours
   const v=$("#view"); const n=route.name;
   if(soft && SOFT[n]){ SOFT[n](v); setSync(); return }
-  const NAVOF={wine:"cave",compare:"cave",accords:"cave",soiree:"palmares",soirees:"palmares",passeport:"palmares",palais:"palmares",jeu:"palmares",bilan:"palmares",livre:"confrerie"};
+  const NAVOF={amicave:"confrerie",wine:"cave",compare:"cave",accords:"cave",soiree:"palmares",soirees:"palmares",passeport:"palmares",palais:"palmares",jeu:"palmares",bilan:"palmares",livre:"confrerie"};
   $$("#nav button").forEach(b=>b.classList.toggle("on",b.dataset.go===n||NAVOF[n]===b.dataset.go));
   const y=soft?window.scrollY:0;
   if(n==="cave") v.innerHTML=viewCave();
@@ -961,7 +976,8 @@ function meterHTML(label,val,scale){
   return `<div class="meter"><span class="mono">${label}</span><div><div class="bar">${[0,1,2,3,4].map(i=>`<i style="left:${i*25}%"></i>`).join("")}<b style="left:${(val-1)*25}%"></b></div><div class="note" style="font-size:14px;margin-top:2px">${scale[val-1]}</div></div></div>`;
 }
 function viewWine(id){
-  const e=S.entries[id]; if(!e||e.deleted) return `<div class="empty">Ce vin n'existe plus.</div>`;
+  const e=S.entries[id]; if(!e||e.deleted||isHidden(e)) return `<div class="empty">Ce vin n'existe plus.</div>`;
+  const mine=inMyCave(e.id), owner=!e.by||normA(e.by)===normA(ME), kept=isSaved(e.id), myScore=(e.scores||[]).find(x=>normA(x.who||"")===normA(ME)&&x.score!=null&&x.score!=="");
   const a=avg(e), no=catalogNo()[id], col=COLORS[e.color]||COLORS.autre;
   const p=e.palate||{}; const hasPalate=PALATE_AXES.some(([k])=>p[k]);
   const spec=[["Domaine",e.producer],["Millésime",e.vintage?`${esc(e.vintage)}${roman(e.vintage)?` <span class="mono">${roman(e.vintage)}</span>`:""}`:""],["Appellation",e.appellation],["Région",[e.region,e.country].filter(Boolean).join(", ")],["Cépages",(e.grapes||[]).join(", ")],["Degré",e.abv?e.abv+" %":""],["Prix",e.price?e.price+" €":""],["Acheté à",e.where],["Garde",e.drinkBy?"Jusqu'en "+e.drinkBy:""],["Racheter",e.rebuy?({oui:"Oui, sans hésiter",peut:"Peut-être",non:"Non"}[e.rebuy]):""]].filter(x=>x[1]);
@@ -997,8 +1013,11 @@ function viewWine(id){
       ${(e.pairing||e.verdict)?`<div class="section">${S_("Coda")}${e.pairing?`<div class="mono">Accords</div><p style="margin:4px 0 14px">${esc(e.pairing)}</p>`:""}${e.verdict?`<div class="redblock"><div class="mono b" style="text-align:center">Le mot de la fin</div><div class="quote">« ${esc(e.verdict)} »</div></div>`:""}</div>`:""}
       ${terroirHTML(e)}
       ${vintagesHTML(e)}
+      ${!mine?`<div class="keep-card"><div class="mono b">Le vin de ${esc(e.by||"un ami")}</div><p class="note" style="margin:6px 0 12px">Tu l'as goûté aussi ? Range-le dans ta cave, et donne ta note si tu veux.</p>
+        <div class="actions" style="margin:0"><button class="btn red" id="keepBtn">+ Ajouter à ma cave</button><button class="btn" id="noteBtn">Ma note</button></div></div>`
+      :!owner?`<div class="actions"><button class="btn" id="noteBtn">${myScore?"Ma note : "+fmtScore(parseFloat(myScore.score)):"Ma note"}</button>${kept?`<button class="btn ghost" id="keepBtn">Retirer de ma cave</button>`:""}</div>`:""}
       <div class="actions"><button class="btn red" id="posterBtn">Affiche</button><button class="btn" id="cmpBtn">Comparer</button></div>
-      <div class="actions" style="margin-top:10px"><button class="btn" id="editBtn">Modifier</button><button class="btn" id="sessBtn">Soirée</button><button class="btn ghost" id="delBtn">Effacer</button></div>
+      ${mine?`<div class="actions" style="margin-top:10px"><button class="btn" id="editBtn">Modifier</button><button class="btn" id="sessBtn">Soirée</button>${owner?`<button class="btn ghost" id="delBtn">Effacer</button>`:""}</div>`:""}
       <div class="rule mono" style="margin-top:30px">Inscrit le ${esc(fmtDate(e.createdAt.slice(0,10)))}</div>
     </div>
   </article>`;
@@ -1014,16 +1033,34 @@ function terroirHTML(e){
 }
 bind.wine=v=>{
   const mb=$("[data-map]",v); if(mb) mb.onclick=()=>go("carte",mb.dataset.map);
-  const b=$("#editBtn",v); if(!b) return;
-  const gs=$("[data-gosess]",v); if(gs) gs.onclick=()=>go("soiree",gs.dataset.gosess);
+  if(!$("#posterBtn",v)) return;
+  const gs=$("[data-gosess]",v); if(gs) gs.onclick=()=>{ const so=soByKey(gs.dataset.gosess); if(so&&attends(so.id)) go("soiree",gs.dataset.gosess); else toast("Tu n'étais pas invité à cette soirée") };
   bindCards(v);
+  const kb=$("#keepBtn",v); if(kb) kb.onclick=async()=>{ const id=route.id, on=!isSaved(id)||!inMyCave(id); await setSaved(id,on); buzz(20);
+    if(on){ const e=S.entries[id]; pourFX({color:e.color,title:e.name||e.producer,sub:"Ajouté à ta cave"}) } else toast("Retiré de ta cave"); render(true) };
+  const nb=$("#noteBtn",v); if(nb) nb.onclick=()=>myNoteSheet(S.entries[route.id]);
+  const b=$("#editBtn",v)||{};
+  if(!$("#sessBtn",v)){ $("#posterBtn",v).onclick=()=>{const e=S.entries[route.id];shareImage(posterWine(e),"in-vino-vin.png")}; $("#cmpBtn",v).onclick=()=>pickWine(route.id,b=>go("compare",route.id+"|"+b)); return }
   $("#posterBtn",v).onclick=()=>{const e=S.entries[route.id];shareImage(posterWine(e),"in-vino-"+(normA(e.name||e.producer).replace(/ /g,"-")||"vin")+".png")};
   $("#cmpBtn",v).onclick=()=>pickWine(route.id,b=>go("compare",route.id+"|"+b));
   $("#sessBtn",v).onclick=async()=>{const e=S.entries[route.id];const x=await pickSession({cur:sessionKey(e),allowNone:!!e.session});
     if(x===undefined)return; await assignSession([e.id],x); buzz(20); toast(x?"Rattaché à « "+x.name+" »":"Retiré de la soirée"); render(true)};
   b.onclick=()=>go("edit",route.id);
-  $("#delBtn",v).onclick=()=>confirmSheet("Effacer ce vin ?","Il disparaîtra de la cave de toute la confrérie.","Effacer",async()=>{await deleteEntry(route.id);toast("Vin effacé");history.back()});
+  const db=$("#delBtn",v); if(db) db.onclick=()=>confirmSheet("Effacer ce vin ?","Il disparaîtra de la cave de toute la confrérie.","Effacer",async()=>{await deleteEntry(route.id);toast("Vin effacé");history.back()});
 };
+/* Donner sa note au vin d'un ami (le vin rejoint alors ma cave) */
+function myNoteSheet(e){
+  const cur=(e.scores||[]).find(x=>normA(x.who||"")===normA(ME)); let v=cur&&cur.score!=null&&cur.score!==""?parseFloat(cur.score):null;
+  openSheet(`<div class="mono">${esc(e.name||e.producer)}</div><h3>Ma note</h3>
+    <div class="scorebig"><span id="mnV">${v==null?"–":fmtScore(v)}</span><small>/20</small></div>
+    <input type="range" id="mnS" min="0" max="20" step="0.5" value="${v??14}">
+    <div class="field"><label class="mono">Mon avis</label><textarea id="mnC" placeholder="Ce que tu en as pensé…">${esc(cur&&cur.comment||"")}</textarea></div>
+    <div class="actions"><button type="button" class="btn ghost" data-x>Annuler</button><button type="button" class="btn red" data-mnok>Enregistrer</button></div>`,
+  m=>{ const r=$("#mnS",m), set=()=>{v=parseFloat(r.value);$("#mnV",m).textContent=fmtScore(v)}; ["input","change","pointerup"].forEach(ev=>r.addEventListener(ev,set));
+    $("[data-mnok]",m).onclick=async()=>{ if(v==null) return toast("Choisis ta note");
+      const x=S.entries[e.id]; x.scores=(x.scores||[]).filter(s=>normA(s.who||"")!==normA(ME)).concat([{who:ME,score:v,comment:$("#mnC",m).value.trim()}]);
+      await upsertEntry(x); await closeModal(); buzz(20); toast("Note enregistrée, le vin est dans ta cave"); render(true) } });
+}
 function confirmSheet(title,text,okLabel,onOk){
   const m=document.createElement("div");m.className="modal";
   m.innerHTML=`<div class="sheet"><h3>${esc(title)}</h3><p class="note">${esc(text)}</p><div class="actions"><button class="btn ghost" data-x>Annuler</button><button class="btn red" data-ok>${esc(okLabel)}</button></div></div>`;
@@ -1419,8 +1456,9 @@ function viewConfrerie(){
 
     <div class="section"><div class="sec-h"><span class="num">II</span><h4>Mes amis</h4></div>
       <p class="note" style="margin-top:0">Les amis de tes soirées. Touche un prénom pour voir son palais.</p>
-      ${ms.filter(m=>normA(m.name)!==normA(ME)).length?ms.filter(m=>normA(m.name)!==normA(ME)).map(m=>`<div class="member"><span class="n tap" data-palais="${esc(m.name)}">${esc(m.name)} ›</span><span class="mono">${entries().filter(e=>(e.scores||[]).some(s=>norm(s.who)===norm(m.name))).length} vins <button class="linkbtn" data-rmm="${m.id}" style="margin-left:10px">×</button></span></div>`).join(""):`<p class="note">Personne encore. Les dégustateurs s'ajoutent tout seuls quand ils notent un vin.</p>`}
+      ${ms.filter(m=>normA(m.name)!==normA(ME)).length?ms.filter(m=>normA(m.name)!==normA(ME)).map(m=>`<div class="member"><span class="n tap" data-palais="${esc(m.name)}">${esc(m.name)}</span><span class="mono"><button class="linkbtn" data-acave="${esc(m.name)}">Sa cave · ${friendCave(m.name).length} ›</button><button class="linkbtn" data-rmm="${m.id}" style="margin-left:12px">×</button></span></div>`).join(""):`<p class="note">Personne encore. Les dégustateurs s'ajoutent tout seuls quand ils notent un vin.</p>`}
       <div class="actions"><button class="btn ghost small" id="addMember">+ Ajouter un ami</button></div>
+      <div class="member" style="margin-top:8px"><span><span class="n" style="font-size:20px">Ma cave visible par mes amis</span><br><span class="note" style="font-size:14px">Sinon, ils ne voient que les vins de vos soirées communes</span></span><button class="chip ${isPrivateCave(ME)?"":"on"}" id="privBtn">${isPrivateCave(ME)?"Privée":"Visible"}</button></div>
     </div>
 
     <div class="section"><div class="sec-h"><span class="num">III</span><h4>Le partage</h4></div>
@@ -1468,6 +1506,9 @@ bind.confrerie=v=>{
   $("#notifBtn",v).onclick=()=>{ if(FXCFG.notif&&("Notification" in window)&&Notification.permission==="granted"){localStorage.setItem("iv_notif","0");render(true)} else askNotif() };
   $("#fxTry",v).onclick=()=>pourFX({color:"rouge",title:"Santé !",sub:"Essai"});
   $$("[data-palais]",v).forEach(b=>b.onclick=()=>go("palais",b.dataset.palais));
+  $$("[data-acave]",v).forEach(b=>b.onclick=()=>go("amicave",b.dataset.acave));
+  const pv=$("#privBtn",v); if(pv) pv.onclick=async()=>{ const priv=!isPrivateCave(ME); ensureMember(ME);
+    Object.values(S.members).filter(m=>normA(m.name)===normA(ME)).forEach(m=>{m.privateCave=priv;m.deleted=false;m.updatedAt=now()}); await saveLocal(); scheduleSync(); toast(priv?"Ta cave est privée":"Tes amis peuvent voir ta cave"); render(true) };
   $("#bookBtn",v).onclick=()=>go("livre");
   const ib=$("#installBtn",v); if(ib) ib.onclick=async()=>{const ev=INSTALL_EVT;INSTALL_EVT=null;ev.prompt();try{await ev.userChoice}catch(e){}render(true)};
   $("#meIn",v).onchange=e=>{const n=e.target.value.trim(); if(!n) return; setME(n); saveLocal().then(scheduleSync); toast("Enchanté, "+ME); render(true)};
@@ -2293,6 +2334,22 @@ function palaisData(name){
   let gpts=0,gn=0; for(const g of Object.values(S.guesses)){if(g.deleted||!same(g.who,name))continue;const e=S.entries[g.wine];if(e&&e.blind&&e.blind.revealed){gpts+=scoreGuess(g,e).total;gn++}}
   return {n,mean,sev,grapes,colors,regions,aromas,tw,hist,reco,rated,gpts,gn};
 }
+VIEWS.amicave=name=>{
+  const list=friendCave(name).sort((a,b)=>(b.date||"").localeCompare(a.date||"")||b.createdAt.localeCompare(a.createdAt)), nos=catalogNo(), mine=new Set(entries().map(e=>e.id));
+  const his=list.map(e=>{const x=(e.scores||[]).find(s=>normA(s.who||"")===normA(name));return x&&x.score!=null&&x.score!==""?parseFloat(x.score):null}).filter(x=>x!=null);
+  const mean=his.length?his.reduce((a,b)=>a+b,0)/his.length:null, toAdd=list.filter(e=>!mine.has(e.id)).length;
+  return `<section class="wrap">
+    <div class="row-between" style="padding-top:8px"><button class="linkbtn" onclick="history.back()">← Retour</button><button class="linkbtn" data-pal>Son palais ›</button></div>
+    <div class="mono" style="text-align:center;margin-top:40px">La cave de</div>
+    <h1 class="pagetitle" style="margin-top:34px;font-size:min(18vw,90px)"><span class="tall">${esc(name)}</span></h1><div class="script pagescript">amicus</div>
+    <div class="stats" style="margin-top:22px"><div><div class="v" data-count="${list.length}">${list.length}</div><div class="k mono">Vins</div></div><div><div class="v" ${mean!=null?`data-count="${fmtScore(mean)}"`:""}>${fmtScore(mean)}</div><div class="k mono">Sa moyenne</div></div><div><div class="v" data-count="${toAdd}">${toAdd}</div><div class="k mono">Pas chez toi</div></div></div>
+    ${isPrivateCave(name)?`<div class="card-plain note" style="margin-top:16px">${esc(name)} garde sa cave privée : tu ne vois que les vins de vos soirées communes.</div>`:""}
+    ${toAdd?`<div class="chips" id="acF"><button class="chip on" data-acf="all">Tous</button><button class="chip" data-acf="new">Pas encore dans ma cave</button></div>`:""}
+    <div class="list" id="acList">${list.length?list.map(e=>cardHTML(e,nos[e.id]).replace('class="card"',`class="card ${mine.has(e.id)?"":"notmine"}"`)).join(""):`<div class="empty">Aucun vin à afficher.</div>`}</div>
+  </section>`;
+};
+bind.amicave=v=>{ bindCards(v); $("[data-pal]",v).onclick=()=>go("palais",route.id);
+  $$("[data-acf]",v).forEach(b=>b.onclick=()=>{ $$("[data-acf]",v).forEach(x=>x.classList.toggle("on",x===b)); $$("#acList .card",v).forEach(c=>c.style.display=b.dataset.acf==="new"&&!c.classList.contains("notmine")?"none":"") }) };
 VIEWS.palais=name=>{
   const P=palaisData(name);
   if(!P.n) return `<section class="wrap"><div style="padding-top:8px"><button class="linkbtn" onclick="history.back()">← Retour</button></div><h1 class="pagetitle"><span class="tall">${esc(name)}</span></h1><div class="empty">${esc(name)} n'a encore noté aucun vin.</div></section>`;
@@ -2302,6 +2359,7 @@ VIEWS.palais=name=>{
   return `<section class="wrap">
     <div style="padding-top:8px"><button class="linkbtn" onclick="history.back()">← Retour</button></div>
     <h1 class="pagetitle" style="font-size:min(18vw,90px)"><span class="tall">${esc(name)}</span></h1><div class="script pagescript">le palais</div>
+    ${normA(name)!==normA(ME)?`<div class="actions"><button class="btn" data-acave="${esc(name)}">Voir sa cave</button></div>`:""}
     <div class="stats" style="margin-top:22px"><div><div class="v" data-count="${P.n}">${P.n}</div><div class="k mono">Vins notés</div></div><div><div class="v" data-count="${fmtScore(P.mean)}">${fmtScore(P.mean)}</div><div class="k mono">Moyenne</div></div><div><div class="v" ${P.gn?`data-count="${P.gpts}"`:""}>${P.gn?P.gpts:"-"}</div><div class="k mono">Pts à l'aveugle</div></div></div>
     ${sevTxt?`<div class="quote" style="font-size:22px;margin-top:14px">${esc(sevTxt)}</div>`:""}
     <div class="section">${sh("I","Sa façon de noter")}<div class="histo">${P.hist.map((h,i)=>`<div class="hb"><i style="--h:${h/hmax*100}%;--k:${i}"></i><span class="mono">${i*2}</span></div>`).join("")}</div></div>
@@ -2316,7 +2374,7 @@ VIEWS.palais=name=>{
     ${P.reco.length?`<div class="section">${sh("V","À goûter")}<p class="note" style="margin-top:0">Ce que la confrérie a adoré et que ${esc(name)} n'a pas encore noté.</p><div class="list">${P.reco.map(e=>cardHTML(e,nos[e.id])).join("")}</div></div>`:""}
   </section>`;
 };
-bind.palais=v=>bindCards(v);
+bind.palais=v=>{ bindCards(v); $$("[data-acave]",v).forEach(b=>b.onclick=()=>go("amicave",b.dataset.acave)) };
 
 /* ============ COMPARER DEUX VINS ============ */
 function pickWine(exclude,onPick){
